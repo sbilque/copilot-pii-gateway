@@ -1,0 +1,4 @@
+[proxy]
+server = proxy.entreprise.example:8080
+listen = 127.0.0.1
+port = 3128

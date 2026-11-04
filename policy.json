@@ -1,0 +1,40 @@
+{
+  "mode": "block",
+  "max_body_bytes": 4194304,
+  "max_response_bytes": 8388608,
+  "max_aliases": 10000,
+  "max_depth": 64,
+  "cache_size": 2000,
+  "host_suffixes": [
+    "enterprise.githubcopilot.com",
+    "business.githubcopilot.com"
+  ],
+  "exact_hosts": [
+    "copilot-proxy.githubusercontent.com"
+  ],
+  "block_entities": [
+    "SECRET"
+  ],
+  "presidio_language": null,
+  "patterns": [
+    {
+      "entity": "EMAIL",
+      "pattern": "(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b"
+    },
+    {
+      "entity": "HOST",
+      "pattern": "(?i)\\b[a-z0-9][a-z0-9.-]*\\.(?:corp|internal|lan)\\b"
+    },
+    {
+      "entity": "SECRET",
+      "pattern": "\\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\\b"
+    },
+    {
+      "entity": "SECRET",
+      "pattern": "(?s)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    }
+  ],
+  "literals": [
+    "CLIENT_DEMO_CONFIDENTIEL"
+  ]
+}

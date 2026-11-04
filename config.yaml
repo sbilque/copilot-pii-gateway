@@ -1,0 +1,13 @@
+listen_host: 127.0.0.1
+listen_port: 8080
+mode:
+  - upstream:http://proxy.entreprise.example:8080
+scripts:
+  - ./copilot_pii.py
+allow_hosts:
+  - '^(.+\.)?githubcopilot\.com:443$'
+  - '^copilot-proxy\.githubusercontent\.com:443$'
+connection_strategy: lazy
+flow_detail: 0
+ssl_insecure: false
+# ssl_verify_upstream_trusted_ca: /path/to/approved-ca-bundle.pem

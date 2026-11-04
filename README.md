@@ -1,47 +1,38 @@
 # Copilot PII Gateway
 
-Passerelle locale de pseudonymisation des donnees sensibles pour VS Code et GitHub Copilot, avec conservation de l'abonnement Copilot et sortie par proxy d'entreprise.
+Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot, avec sortie par proxy d'entreprise. Reconstruction du prototype de la conversation : pas une importation identique de l'ancienne archive V3.
 
-## Statut
+## Code et tests
 
-Prototype experimental en cours de consolidation. Ce premier commit publie la documentation et les decisions de conception, pas le code executable. Les archives de prototype produites pendant la conception ne sont pas encore importees dans ce depot.
+- `pii_core.py` : detection, alias, propagation, cache, parcours JSON et restauration.
+- `copilot_pii.py` : adaptateur mitmproxy.
+- `test_core.py`, `test_addon.py` : 31 tests unitaires, dont hooks mitmproxy simules.
+- `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
+- `check_proxy.py` : canari synthetique local.
 
-Des tests unitaires et des flux simules ont ete executes dans les prototypes precedents. Ils ne prouvent pas une integration reelle avec Copilot, mitmproxy, Presidio ou un proxy NTLM/Kerberos. Leurs resultats ne sont pas reproductibles depuis ce commit documentaire.
-
-## Architecture cible
-
-```text
-VS Code / GitHub Copilot
-  -> transport mitmproxy OU passerelle native experimentale
-  -> detection locale et pseudonymisation
-  -> proxy d'entreprise, directement ou via Px
-  -> GitHub Copilot
-  -> restauration locale des alias dans les reponses
+```bash
+python -m unittest -v
 ```
 
-Les secrets sont bloques plutot que rendus reversibles. Une panne du filtre ne doit jamais provoquer l'envoi du corps original sensible.
+Les tests utilisent la bibliotheque standard ; mitmproxy et Presidio ne sont pas requis pour les tests simules.
+
+Installation et limites : [guide du prototype](docs/prototype.md).
+
+## Statut et securite
+
+Non valide contre Copilot reel, mitmproxy reel, Presidio ou un proxy NTLM/Kerberos. Le reverse proxy natif, wrap/unwrap et le schema reseau V4 ne sont pas implementes.
+
+Difference importante avec le prototype historique : cette reconstruction bufferise integralement les reponses SSE avant restauration. Ce n'est pas un streaming interactif. Les plafonds de taille ne constituent pas une limite memoire avant reception.
+
+Les secrets detectes sont bloques. Les alias inconnus ou malformes provoquent un refus de reponse. Cela ne garantit pas la detection de toutes les PII ni de tous les alias alteres. Aucune execution d'outils avec effets de bord pendant les essais.
 
 ## Documentation
 
 - [Index](docs/README.md)
-- [Handoff pour un autre LLM ou developpeur](docs/handoff.md)
-- [Architecture et transports](docs/adr/001-architecture-and-transports.md)
-- [Politique de confidentialite](docs/adr/002-fail-closed-pii-policy.md)
-- [Sortie par proxy d'entreprise](docs/adr/004-enterprise-proxy-authentication.md)
-- [Configuration reseau](docs/network/proxy-enterprise.md)
+- [Handoff historique](docs/handoff.md) : photographie du premier commit documentaire ; pour l'etat actuel du code, lire ce README et le guide du prototype.
+- [ADR architecture](docs/adr/001-architecture-and-transports.md)
+- [ADR protection PII](docs/adr/002-fail-closed-pii-policy.md)
+- [ADR proxy d'entreprise](docs/adr/004-enterprise-proxy-authentication.md)
+- [Guide reseau](docs/network/proxy-enterprise.md)
 
-## Prochaines etapes
-
-1. Recuperer ou reconstruire le code du prototype et rendre les tests reproductibles.
-2. Separer moteur PII, protocoles, transports et configuration reseau.
-3. Ajouter des tests d'integration avec un vrai mitmproxy et un proxy amont de test.
-4. Evaluer la redirection native Copilot sans interception TLS.
-5. Valider chaque profil sur un poste autorise, avec des donnees synthetiques.
-
-## Inspirations
-
-- AgentRedactor : https://github.com/Negative-Star-Innovators/AgentRedactor
-- Headroom : https://github.com/headroomlabs-ai/headroom
-- Px : https://github.com/genotrance/px
-
-Les choix de ces projets sont des inspirations, pas une preuve de compatibilite du present projet. Aucun de leurs composants n'est embarque par ce commit.
+Inspirations : [AgentRedactor](https://github.com/Negative-Star-Innovators/AgentRedactor), [Headroom](https://github.com/headroomlabs-ai/headroom), [Px](https://github.com/genotrance/px). Code reconstruit, sans copie de leurs composants. Licence MIT.
