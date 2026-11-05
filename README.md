@@ -40,7 +40,7 @@ Le canari verifie un corps neutre, la protection d'un email synthetique et, en m
 ## Documentation
 
 - [Index](docs/README.md)
-- [Handoff historique](docs/handoff.md) : photographie du premier commit documentaire ; pour l'etat actuel du code, lire ce README et le guide du prototype.
+- [Handoff](docs/handoff.md) : etat reel du depot, ecarts avec V3, risques et plan de reprise.
 - [ADR architecture](docs/adr/001-architecture-and-transports.md)
 - [ADR protection PII](docs/adr/002-fail-closed-pii-policy.md)
 - [ADR proxy d'entreprise](docs/adr/004-enterprise-proxy-authentication.md)

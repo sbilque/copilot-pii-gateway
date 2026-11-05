@@ -102,4 +102,4 @@ Verifier un prompt neutre, un canari email, le corps sortant, les reponses JSON/
 4. Decider explicitement si le streaming incremental SSE doit etre reintroduit, avec adaptateurs par protocole et tests des evenements terminaux et canaux paralleles.
 5. Ajouter une supervision et un verrou reseau pour l'absence du filtre ; le canari seul ne ferme pas ce risque.
 
-Le handoff et les ADR historiques restent la photographie de la conception initiale. Le transport natif est differe et a evaluer, non abandonne. Les profils direct_proxy et integrated_proxy ne sont pas encore un schema applicatif executable.
+Le handoff decrit l'etat actuel du depot ; chaque ADR indique son etat d'implementation. Le transport natif est differe et a evaluer, non abandonne. Les profils direct_proxy et integrated_proxy restent des configurations manuelles, pas un schema applicatif executable.

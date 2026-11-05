@@ -35,3 +35,7 @@ Presidio etait appele de facon synchrone dans Guard.spans(), dans le processus m
 - Le worker suppose que mitmproxy tourne dans un interpreteur Python capable de lancer pii_worker.py (installation pip dans un venv). Avec un binaire mitmproxy autonome, renseigner presidio_python vers un Python disposant de presidio-analyzer et du modele.
 - Les valeurs par defaut (3000 ms, 200000 caracteres, file de 8, 3 relances en 60 s) sont des points de depart, non mesures sur un poste cible.
 - Valide : 22 tests avec processus enfants reels (faux analyseur), un test avec Presidio reel et en_core_web_sm, un demarrage de mitmdump 12.3 avec point de sante ready et arret sans processus orphelin. Non valide : Copilot reel, proxy d'entreprise, modeles francais, charge reelle.
+
+## Outillage (2026-11-05)
+
+`make setup-presidio` installe requirements-presidio.txt et le modele choisi (`PRESIDIO_MODEL`, fr_core_news_lg par defaut) dans le venv utilise par mitmdump, ce qui satisfait l'hypothese d'interpreteur ci-dessus sans presidio_python. Avec en_core_web_sm installe, les 80 tests passent sans test ignore. Le modele francais n'a pas ete exerce.

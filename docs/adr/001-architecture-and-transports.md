@@ -1,7 +1,8 @@
 # ADR-001 - Architecture et transports
 
 - Date : 2026-11-04
-- Statut : accepte pour la conception ; integration non validee.
+- Statut : accepte ; transport mitmproxy implemente, transport natif differe ; integration Copilot non validee.
+- Mise a jour : 2026-11-05
 
 ## Contexte
 
@@ -24,3 +25,12 @@ Le transport mitmproxy conserve le client officiel et necessite un certificat lo
 ## Validation
 
 Tester chaque chemin, l'identite Copilot, les changements de modele, les profils VS Code et les environnements distants. Une reponse de health ne prouve pas que les requetes de la fenetre active traversent le filtre.
+
+## Etat d'implementation (2026-11-05)
+
+- Moteur PII separe de l'adaptateur : pii_core.py, pii_config.py, pii_detector.py ; copilot_pii.py ne contient que le transport mitmproxy. Les adaptateurs de protocole ne sont pas encore des modules distincts.
+- Transport mitmproxy : implemente, demarre et teste par hooks simules et canari ; pas de serveur amont de test ni de trafic Copilot.
+- Transport natif : non implemente. Differe, pas abandonne ; a reevaluer apres l'integration mitmproxy reelle.
+- Octets originaux conserves si rien ne change : implemente.
+- Blocs signes, thinking et multimedia : refuses. C'est la politique explicite retenue pour l'instant, en attendant une analyse par type de bloc.
+- Chat Completions, Responses et style Anthropic couverts par des tests de restauration ; completions et autres schemas non garantis.

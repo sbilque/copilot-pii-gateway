@@ -1,6 +1,6 @@
 # Handoff pour un autre LLM ou developpeur
 
-Date : 2026-11-04. Ce document reprend les decisions d'une conversation de conception. Il distingue les prototypes historiques du contenu effectivement publie.
+Date : 2026-11-05, etat du code au commit 5979695. Ce document distingue les decisions de conception, le prototype historique V3 et le contenu effectivement publie et teste dans ce depot. La premiere version (2026-11-04, commit 964b06c) decrivait un depot sans code ; elle reste consultable dans l'historique Git.
 
 ## Mission
 
@@ -10,81 +10,105 @@ Toute sortie Internet passe par un proxy d'entreprise, sans authentification ou 
 
 ## Etat reel du depot
 
-Ce commit contient documentation et ADR uniquement. Aucun code executable du prototype n'a encore ete importe. Des archives ont ete generees pendant la conversation mais elles ne sont pas automatiquement disponibles dans une nouvelle session. Recuperer l'archive V3 ou reconstruire explicitement le prototype ; ne pas pretendre qu'une reimplementation est identique.
+| Commit | Contenu |
+|---|---|
+| 964b06c | Documentation, ADR-001, 002, 004, guide reseau, premiere passation |
+| 9119ab9 | Reconstruction du prototype : coeur, addon mitmproxy, 31 tests |
+| 1f2f64e | Validation de la politique, secrets dans les noms d'outils, arguments SSE Responses, canari renforce (58 tests) |
+| f2ef1eb | Presidio dans un worker a delai borne, ADR-005 (80 tests) |
+| 5979695 | Makefile, check_config.py, requirements-px.txt |
 
-Le prototype V3 a fait l'objet de 51 tests unitaires et de flux simules annonces reussis. Ces tests ne sont pas encore dans le depot et ne sont donc pas reproductibles ici. Aucun test reel avec Copilot, mitmproxy installe, Presidio, Px ou le proxy d'entreprise n'a ete effectue.
+Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 80 tests reproductibles.
 
-## Architecture
+Fichiers : pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
 
-Transport historique : client Copilot officiel -> mitmproxy local avec interception HTTPS -> proxy d'entreprise -> GitHub Copilot. Certificat local approuve necessaire.
+Valide : 80 tests unitaires, dont 22 avec processus enfants reels et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de mitmdump et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Non valide : trafic Copilot reel, proxy d'entreprise, NTLM/Kerberos, modeles francais, charge, serveur amont de test.
 
-Cible : moteur PII commun, adaptateur mitmproxy conserve et reverse proxy natif Copilot experimental. Ne pas supprimer mitmproxy avant validation du routage natif et de son authentification.
+## Demarrage rapide
 
-## Prototype V3 a recuperer
+```bash
+make setup        # venv, mitmproxy, CA locale, tests, politique, config.yaml
+make doctor       # etat et etapes manuelles
+make run          # proxy au premier plan
+make canary       # depuis un autre terminal
+```
 
-Fichiers historiques : copilot_pii.py, policy.json, test_guard.py, test_addon.py, check_proxy.py, config.yaml, vscode-settings.json, run.sh, run.ps1, px.ini.example, detector_example.py, requirements.txt, requirements-presidio.txt, README.md, LICENSE.
+Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique avec accord securite, proxy VS Code. Voir le [guide du prototype](prototype.md).
 
-Classes principales : Guard, StreamRestorer, CopilotPII.
+## Comportement implemente
 
-Modes : block (defaut), redact, audit (envoi en clair, donnees synthetiques seulement). Detection : emails, IPv4 RFC1918, domaines corp/internal/lan, certains tokens GitHub, cles privees et valeurs litterales ; Presidio fr/en facultatif ; plugins module:fonction retournant (debut, fin exclusive, type).
+- Politique JSON chargee avec rejet des cles dupliquees et constantes non standard, puis validee (ConfigurationError) avant tout detecteur.
+- Modes block (defaut) et redact. Pas de mode audit.
+- Detection : regex de la politique, litteraux, IPv4 RFC1918, Presidio facultatif via worker. Pas de plugins module:fonction.
+- Alias __PII_<12 hex>_<6 chiffres>__, stables pendant la vie du mapping, propagation des valeurs connues (3 caracteres minimum, frontieres de mots), cache LRU par empreinte BLAKE2b.
+- Parcours JSON : schema racine reconnu exige (messages, prompt, input, system, instructions, suffix) ; detection dans un champ structurel ou un nom de cle -> blocage ; `tools` analyse sans reecriture ; noms d'outils preserves sauf categorie bloquee ; blocs signes, thinking, multimedia et gros data: refuses.
+- Addon : hotes Copilot seulement ; HTTPS, JSON, sans query ni upgrade ; 413 sur longueur declaree excessive ; 403 sur refus de politique ; 503 si le detecteur est indisponible ; Accept-Encoding: identity ; octets originaux conserves si rien ne change.
+- Restauration en mode redact avec mapping non vide : JSON recursif et SSE entierement bufferise ; arguments, partial_json et deltas Responses parses avant restauration ; alias inconnu ou malforme -> 502.
+- Canari pii-gate.invalid : loopback sans Origin ; corps neutre, email synthetique bloque ou pseudonymise puis restaure, etat du detecteur.
 
-Alias : __PII_<12 caracteres hex aleatoires>_<compteur sur 6 chiffres>__. Mapping en memoire, capacite bornee, propagation des valeurs deja masquees avec frontieres de mots et longueur minimale 3. Cache LRU des detecteurs lourds, indexe par BLAKE2b 16 octets, sans texte, 2000 entrees par defaut. Regex et propagation recalculees.
+## Ecarts avec V3
 
-Parcours JSON : champs structurels id, tool_call_id, tool_use_id, call_id, previous_response_id, model, role, type, stop, stop_sequences. Detection dans ces champs -> blocage. Exemptions contextuelles de name pour les identifiants d'outils ; autres name analyses.
+| V3 | Reconstruction |
+|---|---|
+| Mode audit | Absent volontairement |
+| tools_policy, unknown_roots, data_uri_policy | Comportements fixes : tools analyse, racine inconnue refusee, gros data: refuses |
+| Plugins de detection | Absents |
+| SSE incremental avec retention des suffixes d'alias | Remplace par une bufferisation complete |
+| Presidio synchrone | Worker separe a delai borne |
+| run.sh, run.ps1, vscode-settings.json, detector_example.py | Remplaces par le Makefile et le guide |
 
-Options : tools_policy=block|inert ; unknown_roots=redact|block ; data_uri_policy=block|skip. tools_policy=block analyse sans reecrire les declarations ; inert les ignore. data_uri_policy=skip peut laisser passer des donnees encodees sensibles. Schema racine reconnu exige : messages, prompt, input, instructions, system ou suffix.
+## Risques techniques
 
-Restauration : JSON recursif et SSE avec retention des suffixes d'alias. Canaux par type, item_id, output_index, content_index, index et chemin JSON. Tests simules Chat Completions, Responses, style Anthropic, arguments d'outils et fragmentation reseau. Cela ne garantit pas une couverture exhaustive des protocoles.
-
-## Risques techniques a traiter
-
-- Alias inconnu ou altere : ne pas executer aveuglement un outil avec une valeur ambigue.
-- Auditer les arguments JSON imbriques lorsque les valeurs restaurees contiennent guillemets, antislashs ou controles.
-- Auditer les canaux paralleles, identifiants et evenements terminaux SSE.
-- Le plafond historique de 4 Mio etait verifie apres buffering, pas avant allocation.
-- Les reponses compressees etaient refusees lorsque la restauration etait requise ; Accept-Encoding: identity force en requete.
-- Politique des blocs signes/opaques non resolue.
-- Mapping global mono-utilisateur : isolation de contexte et concurrence a definir.
-- Health ne prouve pas le routage de la fenetre VS Code.
-- Le comportement exact de reprise apres redemarrage depend de l'historique local et des etats opaques du fournisseur ; ne pas garantir la reprise sans tests.
-- En-tetes, telemetrie, agents cloud, contexte serveur et acces MCP directs ne sont pas automatiquement couverts.
+| Risque | Etat |
+|---|---|
+| Arguments JSON imbriques avec guillemets, antislashs, controles | Traite et teste, y compris deltas Responses et appels paralleles |
+| Secret dans un nom d'outil exempte | Traite : refuse dans les deux modes |
+| Canari confondant erreur et blocage attendu | Traite |
+| Detection lente bloquant la boucle | Traite par ADR-005 |
+| Plafond verifie apres buffering, pas de limite memoire globale ni de concurrence | Ouvert |
+| Mapping global mono-utilisateur, sans TTL ni isolation | Ouvert |
+| Alias non verifies hors mode redact ou mapping vide | Ouvert, documente |
+| Couverture protocolaire et chemins JSON entre evenements SSE | Partiel, a tester sur captures representatives |
+| Absence du filtre si l'addon echoue au chargement | Ouvert : le canari detecte, ne verrouille pas |
+| Health ne prouve pas le routage de la fenetre VS Code | Ouvert |
+| Reprise apres redemarrage, historique fournisseur opaque | Non garanti |
+| En-tetes, telemetrie, agents cloud, contexte serveur, MCP direct | Non couverts |
 
 ## Inspiration AgentRedactor
 
 Depot : Negative-Star-Innovators/AgentRedactor. Revision observee : 0696a735d3da98f34f40496c26ed2e817da50326. Lecture de proxy_engine.h, proxy_engine.cpp tronque, redactor.cpp, api_key_profile.h, http_server.h et pii_detector.h. Pas d'audit complet.
 
-Observations : reverse proxy par profil avec upstreamUrl/apiKey/port, NER ONNX/BPE/Viterbi, propagation, cache, parcours JSON avec exemptions, compteurs persistes sans PII et reconstruction SSE. Idees reprises : propagation, cache, cles structurelles, exemptions et separation des canaux. Ecarts volontaires : secrets bloques, outils analyses et gros data: bloques par defaut. Ne pas affirmer son support du proxy d'entreprise sans lecture supplementaire.
+Idees reprises et implementees : propagation, cache, cles structurelles, exemptions contextuelles et separation des canaux. Ecarts volontaires : secrets bloques, outils analyses et gros data: bloques. Ne pas affirmer son support du proxy d'entreprise sans lecture supplementaire. Aucun code copie.
 
 ## Inspiration Headroom
 
-Depot correct : headroomlabs-ai/headroom. Fichiers lus : providers/copilot/vscode.py et wrap.py ; proxy/body_forwarding.py, request_body_limit.py, extensions.py, loopback_guard.py, hard_watchdog.py, auth_mode.py, forwarded_headers.py ; docs/content/docs/vscode-copilot.mdx.
+Depot : headroomlabs-ai/headroom. Fichiers lus : providers/copilot/vscode.py et wrap.py ; proxy/body_forwarding.py, request_body_limit.py, extensions.py, loopback_guard.py, hard_watchdog.py, auth_mode.py, forwarded_headers.py ; docs/content/docs/vscode-copilot.mdx.
 
-Redirection VS Code observee : github.copilot.advanced.debug.overrideProxyUrl et github.copilot.advanced.debug.overrideCapiUrl vers une URL locale. Parametres internes/de debug dependants de version, non valides dans notre environnement. Le CLI utilise un mecanisme distinct : COPILOT_API_URL avec suppression des COPILOT_PROVIDER_* pour ne pas rester en BYOK.
+Redirection VS Code observee : github.copilot.advanced.debug.overrideProxyUrl et overrideCapiUrl vers une URL locale, parametres de debug dependants de version, non valides ici. Le CLI utilise COPILOT_API_URL. Un reverse proxy peut potentiellement conserver l'abonnement ; routage et authentification restent a auditer.
 
-Correction de conception : un reverse proxy peut potentiellement conserver l'abonnement Copilot ; l'affirmation initiale du contraire etait trop categorique. Il faut auditer le routage et l'authentification. Headroom utilise un device flow, des jetons courts, des politiques distinctes inline/Chat et l'endpoint annonce par GitHub. Ne pas supposer une transmission automatique des credentials.
-
-A reprendre : wrap/unwrap JSONC avec bloc gere, profils VS Code, redirection conservee a l'arret, octets originaux si non modifies, mutations explicites, protection des blocs signes, limite avant buffering, garde Host/Origin et supervision.
-
-A ne pas recopier : demarrage sans extension PII si elle echoue ; abandon d'une mutation PII au profit du corps original ; heuristique d'authentification utilisee comme frontiere de securite.
+Repris dans la reconstruction : octets originaux si non modifies, garde loopback/Origin du canari, refus plutot que repli sur le corps original. Restent a reprendre : wrap/unwrap JSONC, profils VS Code, limite avant buffering, supervision. A ne pas recopier : demarrage sans extension PII si elle echoue, abandon d'une mutation au profit du corps original, heuristique d'authentification comme frontiere de securite.
 
 ## Reseau
 
-Voir ADR-004 et le guide reseau. Deux profils : direct_proxy vers le proxy d'entreprise sans authentification et integrated_proxy vers Px local. Aucun repli Internet direct. SSPI prefere sous Windows lorsque possible ; identite en service et tickets Kerberos a valider ailleurs. Pas de mot de passe dans Git. Les echanges et renouvellements de jetons geres par la passerelle suivent la meme politique reseau.
-
-Le schema network dans la documentation est une proposition V4, pas du code implemente.
+Voir ADR-004 et le guide reseau. Les profils direct_proxy et integrated_proxy sont realises manuellement : mode upstream de config.yaml, et pour NTLM/Kerberos `make px-config` puis `make px` avec `upstream:http://127.0.0.1:3128`. Il n'existe pas de gestionnaire de profils ni de schema network V4 executable. Aucun repli direct n'est configure, mais aucun verrou reseau ne l'empeche.
 
 ## Plan de reprise
 
-1. Recuperer/reconstruire V3 et rendre les tests reproductibles.
-2. Separer core, protocol, transports, upstream et CLI.
-3. Implementer les profils reseau sans fallback direct.
-4. Limiter les corps avant buffering, isoler les detecteurs et borner les delais.
-5. Preserver les octets si rien ne change ; bloquer si la protection necessaire ne peut pas etre appliquee.
-6. Auditer restauration JSON imbrique, SSE et blocs signes.
-7. Ajouter integration avec vrai mitmproxy et proxy de test.
-8. Ajouter transport natif experimental et wrap/unwrap/doctor.
-9. Valider sur poste autorise avec donnees synthetiques, y compris pannes et identites.
+| Etape | Etat |
+|---|---|
+| Reconstruire le prototype et rendre les tests reproductibles | Fait (80 tests) |
+| Isoler les detecteurs et borner leur delai | Fait pour Presidio (ADR-005) |
+| Preserver les octets si rien ne change ; bloquer si la protection est impossible | Fait |
+| Auditer restauration JSON imbriquee et SSE | Fait pour les cas testes ; blocs signes refuses |
+| Outillage de developpement reproductible | Fait (Makefile) |
+| Integration avec vrai mitmproxy, serveur amont de test et proxy de test, y compris pannes | A faire, priorite suivante |
+| Limiter memoire avant buffering et concurrence ; isolation et duree de vie des mappings | A faire |
+| Decider du streaming SSE incremental | A decider |
+| Verrou reseau et supervision de l'absence du filtre | A faire |
+| Separer core, protocol, transports, upstream, CLI ; profils reseau executables | A faire |
+| Transport natif experimental, wrap/unwrap, doctor VS Code | Differe |
+| Validation sur poste autorise avec donnees synthetiques, pannes et identites | A faire |
 
 ## Consignes au repreneur
 
-Ne pas confondre decisions, implementations historiques et contenu present. Ne pas annoncer un code teste sans executable et resultat reproductible. Ne pas publier de secrets ou donnees personnelles. Ne pas qualifier de production-ready. Conserver les approbations d'outils et eviter les actions AWX avec effets de bord lors des tests.
+Ne pas confondre decisions, implementation historique et contenu present. Lancer `make check` avant toute modification et ajouter un test pour chaque correction. Ne pas annoncer un code teste sans resultat reproductible. Ne pas publier de secrets, de donnees personnelles ni la cle privee de la CA. Ne pas qualifier de production-ready. Conserver les approbations d'outils et eviter les actions AWX avec effets de bord lors des tests.
