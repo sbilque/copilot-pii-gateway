@@ -1,13 +1,13 @@
 # Plan : lab d'intégration, filtre absent, isolation des alias
 
-État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 3 réalisés : voir [le lab](../lab/README.md).
+État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 4 réalisés : voir [le lab](../lab/README.md).
 
 ## Constats vérifiés avant de planifier
 
 | Situation | Comportement observé (mitmproxy 12.3.1) | Conséquence |
 |---|---|---|
 | Politique invalide au démarrage | `Error logged during startup, exiting...`, code de sortie 1, aucun port ouvert | Déjà fermé : le client n'a pas de proxy et échoue |
-| Script modifié et cassé pendant l'exécution | Rechargement à chaud, addon déchargé, proxy toujours en écoute, canari en 502 | **Ouvert** : le trafic Copilot traverserait le proxy sans filtre |
+| Script modifié et cassé pendant l'exécution | Rechargement à chaud, addon déchargé, proxy toujours en écoute, canari en 502 | Ouvert avec `mitmdump` ; fermé depuis J4 par `gateway.py` (ADR-006) |
 | Addon chargé, `guard` pas encore initialisé | Exception dans le hook, refus 403 | Fermé |
 | Lanceur Python ajoutant l'addon directement (sans `scripts`) | Politique invalide : sortie en code 1 | Piste retenue pour supprimer le rechargement à chaud |
 | Rechargement de la politique | `load()` crée un nouveau `Guard` : mapping perdu, nouveau préfixe | Les alias déjà émis ne sont plus restaurés ; depuis J3, ils sont refusés (502) même mapping vide |
@@ -163,7 +163,7 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 | J1 | A1 à A4 et A6 : lab minimal, N1 à N3, direct_proxy, CI, devcontainer | — | M, **fait** |
 | J2 | A5 complet, avec F3 marqué « échec attendu » | J1 | M, **fait** |
 | J3 | C1 : vérification systématique des alias | J1 | S, **fait** |
-| J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S |
+| J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S, **fait** |
 | J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M |
 | J6 | C4 et B4 : authentification du proxy local et supervision | J5 | M |
 | J7 | B3 : verrou réseau documenté et vérifié sur un système | J4 | M |

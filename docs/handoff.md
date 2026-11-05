@@ -21,12 +21,13 @@ Toute sortie Internet passe par un proxy d'entreprise, sans authentification ou 
 | jalon 1 | Lab Docker (mitmproxy, Squid, faux Copilot), devcontainer, CI GitHub Actions, plan |
 | jalon 2 | Lab : SSE, pannes F1 a F7, canari depuis le reseau client |
 | jalon 3 | Verification des alias en mode redact meme avec un mapping vide |
+| jalon 4 | Lanceur gateway.py sans scripts ni rechargement (ADR-006), F3 corrige |
 
 Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 85 tests reproductibles.
 
-Fichiers : pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
+Fichiers : gateway.py (lanceur), pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
 
-Valide : 85 tests unitaires, dont 22 avec processus enfants reels et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de mitmdump et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 21 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7 dont F3 en echec attendu, C1, isolation reseau) et la verification de demarrage F4, executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
+Valide : 91 tests unitaires, dont 22 avec processus worker reels, 6 avec mitmproxy reel (lanceur) et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de la passerelle et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 21 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7, C1, isolation reseau) et la verification de demarrage F4 (politique invalide, scripts), executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
 
 ## Demarrage rapide
 
@@ -76,7 +77,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 | Mapping global mono-utilisateur, sans TTL ni isolation | Ouvert |
 | Alias non verifies avec un mapping vide | Traite (jalon 3) ; le mode block ne verifie pas les reponses |
 | Couverture protocolaire et chemins JSON entre evenements SSE | Partiel, a tester sur captures representatives |
-| Absence du filtre si l'addon echoue au chargement | Ouvert : arret au demarrage, mais un rechargement a chaud rate laisse le proxy ouvert (transfert en clair confirme dans le lab) ; lanceur prevu au jalon 4 |
+| Absence du filtre si l'addon echoue au chargement | Traite dans le processus (jalon 4, ADR-006) : gateway.py refuse de demarrer sans politique valide ou avec scripts, et ne recharge rien ; contournement du proxy ouvert (jalon 7) |
 | Health ne prouve pas le routage de la fenetre VS Code | Ouvert |
 | Reprise apres redemarrage, historique fournisseur opaque | Non garanti |
 | En-tetes, telemetrie, agents cloud, contexte serveur, MCP direct | Non couverts |
@@ -106,12 +107,12 @@ Plan detaille et decisions : [plan.md](plan.md).
 
 | Etape | Etat |
 |---|---|
-| Reconstruire le prototype et rendre les tests reproductibles | Fait (85 tests) |
+| Reconstruire le prototype et rendre les tests reproductibles | Fait (91 tests) |
 | Isoler les detecteurs et borner leur delai | Fait pour Presidio (ADR-005) |
 | Preserver les octets si rien ne change ; bloquer si la protection est impossible | Fait |
 | Auditer restauration JSON imbriquee et SSE | Fait pour les cas testes ; blocs signes refuses |
 | Outillage de developpement reproductible | Fait (Makefile) |
-| Integration avec vrai mitmproxy, serveur amont de test et proxy de test | Fait : N1 a N7, F1 a F7 (lab J1 et J2) ; F3 en echec attendu jusqu'au jalon 4 |
+| Integration avec vrai mitmproxy, serveur amont de test et proxy de test | Fait : N1 a N7, F1 a F7, C1 (lab J1 a J4) |
 | Limiter memoire avant buffering et concurrence ; isolation et duree de vie des mappings | A faire |
 | Decider du streaming SSE incremental | A decider |
 | Verrou reseau et supervision de l'absence du filtre | A faire |

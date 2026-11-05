@@ -36,15 +36,15 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 | `gateway-fresh` | Mode redact, ne recoit jamais de donnee sensible : mapping toujours vide (C1) |
 | `gateway-noproxy` | Proxy amont introuvable (F2) |
 | `gateway-presidio` | Detecteur externe factice (`fake_worker.py` via `lab/fake_python.sh`), delai 1 s (F5) |
-| `gateway-hot` | Script charge depuis le volume `hot`, casse a chaud par les tests (F3) |
-| `startup-check` | Profil `faults`, sans reseau : politique invalide, doit refuser de demarrer (F4) |
+| `gateway-hot` | Code lance depuis le volume `hot`, casse pendant l'execution par les tests (F3) |
+| `startup-check` | Profil `faults`, sans reseau : politique invalide puis `scripts` dans la configuration, doit refuser de demarrer (F4) |
 
-`lab/gateway.sh` lit `LAB_MODE`, `LAB_POLICY_PATCH` (JSON fusionne dans `policy.json`), `LAB_UPSTREAM` et `LAB_HOT_DIR`. Le healthcheck des passerelles execute `check_proxy.py` : une passerelle n'est saine que si l'addon repond au canari.
+`lab/gateway.sh` lit `LAB_MODE`, `LAB_POLICY_PATCH` (JSON fusionne dans `policy.json`), `LAB_UPSTREAM`, `LAB_HOT_DIR` et `LAB_ADD_SCRIPTS`, puis lance `gateway.py`. Le healthcheck des passerelles execute `check_proxy.py` : une passerelle n'est saine que si l'addon repond au canari.
 
 - `pki` genere une CA de test, le certificat de `api.business.githubcopilot.com` et la CA mitmproxy dans un volume.
 - `fake-copilot` porte le vrai nom d'hote par alias reseau, enregistre chaque corps recu (`x-lab-id`) et repond selon l'en-tete `x-lab-scenario` : `echo`, `gzip-echo`, `unknown-alias`, `sse-chat`, `sse-responses`, `sse-anthropic`. Les flux SSE renvoient les alias recus, coupes entre evenements, dans le texte et dans trois appels d'outils entrelaces.
 - `corp-proxy` n'autorise que `CONNECT` 443 vers `*.githubcopilot.com`.
-- Les passerelles utilisent `copilot_pii.py`, `policy.json` du depot (mode force par `LAB_MODE`) et `lab/mitmproxy.yaml`, avec verification TLS de l'amont.
+- Les passerelles sont lancees par `gateway.py` (addon integre) avec `policy.json` du depot (mode force par `LAB_MODE`) et `lab/mitmproxy.yaml`, avec verification TLS de l'amont.
 - Trois reseaux `internal` : le client ne joint que les passerelles, et rien ne sort vers Internet.
 
 ## Scenarios couverts
@@ -60,20 +60,19 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 | N7 | Canari appele depuis le reseau client, avec ou sans `Origin` : 403 |
 | F1 | Amont introuvable : 502, rien enregistre |
 | F2 | Proxy d'entreprise injoignable : 502, aucune sortie directe |
-| F3 | Script casse pendant l'execution : echec attendu (`expectedFailure`), le corps sensible part en clair ; corrige au jalon 4 |
-| F4 | Politique invalide au demarrage : mitmproxy refuse de demarrer |
+| F3 | Code casse pendant l'execution : rien n'est recharge, le filtre reste actif (403, rien recu par l'amont) |
+| F4 | Politique invalide ou `scripts` au demarrage : la passerelle refuse de demarrer |
 | F5 | Detecteur lent puis plante : 503 sans transfert, puis reprise apres redemarrage du worker |
 | F6 | Alias inconnu dans la reponse : 502, aucun alias renvoye au client |
 | F7 | Reponse `gzip` : restauree ou refusee explicitement, jamais d'alias brut |
 | C1 | Mapping vide : alias d'une autre instance ou alias inconnu -> 502 sans alias renvoye ; reponse neutre transmise |
 | I1, I2 | Squid et l'amont injoignables depuis le reseau client |
 
-Les tests lisent ce que l'amont a reellement recu. Une passerelle sans addon fait echouer N2 : verifie en retirant `scripts` de la configuration.
+Les tests lisent ce que l'amont a reellement recu. Controles par mutation : une passerelle sans addon (`mitmdump` seul) fait echouer N2, et `gateway-hot` lancee avec `mitmdump` et `scripts` fait echouer F3.
 
 ## Limites
 
 - Pas d'authentification sur Squid, pas de NTLM/Kerberos : voir la methode manuelle du [guide reseau](../docs/network/proxy-enterprise.md).
-- F3 reste un echec attendu tant que le lanceur du jalon 4 du [plan](../docs/plan.md) n'est pas fait.
 - F5 utilise un detecteur factice : Presidio reel n'est pas installe dans l'image du lab.
 - Squid echoue en 5 s sur un nom introuvable (`dns_timeout`, reglage du lab).
 - Les reseaux `internal` reposent sur les regles de Docker ; ils ne remplacent pas un verrou reseau sur le poste.

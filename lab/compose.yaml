@@ -107,25 +107,27 @@ services:
       - pki:/pki:ro
       - hot:/hot
 
-  # F4 : politique invalide au demarrage. Reussit si la passerelle refuse de demarrer.
+  # F4 : demarrage refuse si la politique est invalide ou si scripts est present.
   startup-check:
     <<: *app
     profiles: [faults]
     network_mode: none
     volumes:
       - pki:/pki:ro
-    environment:
-      LAB_POLICY_PATCH: '{"exact_hosts": "x"}'
     command:
       - sh
       - -c
       - |
-        timeout 20 /app/lab/gateway.sh
-        code=$$?
-        if [ $$code -eq 0 ] || [ $$code -eq 124 ]; then
-          echo "FAIL: gateway started with an invalid policy (exit $$code)"; exit 1
-        fi
-        echo "OK: gateway refused to start (exit $$code)"
+        check() {
+          env "$$@" timeout 20 /app/lab/gateway.sh
+          code=$$?
+          if [ $$code -eq 0 ] || [ $$code -eq 124 ]; then
+            echo "FAIL: gateway started ($$*, exit $$code)"; exit 1
+          fi
+          echo "OK: gateway refused to start ($$*, exit $$code)"
+        }
+        check 'LAB_POLICY_PATCH={"exact_hosts": "x"}'
+        check LAB_ADD_SCRIPTS=1
 
   tests:
     <<: *app

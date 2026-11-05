@@ -6,9 +6,10 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 
 - `pii_config.py` : validation explicite de la politique avant initialisation.
 - `pii_core.py` : detection, alias, propagation, cache, parcours JSON et restauration.
+- `gateway.py` : lanceur, addon integre sans chargement ni rechargement de scripts (ADR-006).
 - `copilot_pii.py` : adaptateur mitmproxy (hooks async).
 - `pii_detector.py`, `pii_worker.py` : Presidio dans un processus separe, avec delai borne, relance et refus en cas d'echec.
-- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py` : 85 tests, dont hooks mitmproxy simules et processus worker reels pilotes par `fake_worker.py`.
+- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py`, `test_gateway.py` : 91 tests, dont hooks mitmproxy simules, processus worker reels pilotes par `fake_worker.py` et lanceur avec mitmproxy reel.
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
 - `check_config.py` : validation de config.yaml par le gestionnaire d'options mitmproxy.
@@ -23,13 +24,13 @@ Lab d'integration Docker (mitmproxy reel, Squid, faux serveur Copilot) : `make l
 
 Sans make : `python -m unittest -v`.
 
-Les tests utilisent la bibliotheque standard ; mitmproxy et Presidio ne sont pas requis. Un test supplementaire avec Presidio reel s'execute si `presidio_analyzer` et `en_core_web_sm` sont installes, sinon il est ignore.
+Les tests utilisent la bibliotheque standard ; sans mitmproxy, les tests du lanceur sont ignores, et Presidio n'est pas requis. Un test supplementaire avec Presidio reel s'execute si `presidio_analyzer` et `en_core_web_sm` sont installes, sinon il est ignore.
 
 Installation et limites : [guide du prototype](docs/prototype.md).
 
 ## Statut et securite
 
-Non valide contre Copilot reel ou un proxy NTLM/Kerberos. Le worker Presidio a ete exerce avec Presidio reel (modele anglais) et un demarrage de mitmdump avec point de sante, sans trafic Copilot. Le reverse proxy natif, wrap/unwrap et le schema reseau V4 ne sont pas implementes.
+Non valide contre Copilot reel ou un proxy NTLM/Kerberos. Le worker Presidio a ete exerce avec Presidio reel (modele anglais) et un demarrage de la passerelle avec point de sante, sans trafic Copilot. Le reverse proxy natif, wrap/unwrap et le schema reseau V4 ne sont pas implementes.
 
 Difference importante avec le prototype historique : cette reconstruction bufferise integralement les reponses SSE avant restauration. Ce n'est pas un streaming interactif. Les plafonds de taille ne constituent pas une limite memoire avant reception.
 
@@ -37,7 +38,7 @@ Les secrets detectes dans les corps analyses sont bloques, y compris dans les no
 
 Le client officiel conserve la gestion de l'authentification Copilot ; l'addon ne gere pas les jetons. L'interception HTTPS n'implique pas que les credentials soient invisibles au processus proxy. Les profils reseau restent des configurations manuelles, et le transport natif reste une piste a evaluer, pas une fonction publiee.
 
-Le canari verifie un corps neutre, la protection d'un email synthetique et, en mode redact, sa restauration JSON. Il ne confond plus une erreur generique avec un blocage attendu. Il ne garantit ni le routage de Copilot ni un deploiement globalement fail-closed si l'addon est absent.
+Le canari verifie un corps neutre, la protection d'un email synthetique et, en mode redact, sa restauration JSON. Il ne confond plus une erreur generique avec un blocage attendu. Il ne garantit pas le routage de Copilot. Le lanceur `gateway.py` empeche qu'un addon casse ou recharge laisse le proxy ouvert ; il n'empeche pas un contournement du proxy (verrou reseau a prevoir).
 
 ## Documentation
 

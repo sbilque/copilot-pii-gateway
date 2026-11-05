@@ -38,4 +38,4 @@ Presidio etait appele de facon synchrone dans Guard.spans(), dans le processus m
 
 ## Outillage (2026-11-05)
 
-`make setup-presidio` installe requirements-presidio.txt et le modele choisi (`PRESIDIO_MODEL`, fr_core_news_lg par defaut) dans le venv utilise par mitmdump, ce qui satisfait l'hypothese d'interpreteur ci-dessus sans presidio_python. Avec en_core_web_sm installe, les 80 tests passent sans test ignore. Le modele francais n'a pas ete exerce.
+`make setup-presidio` installe requirements-presidio.txt et le modele choisi (`PRESIDIO_MODEL`, fr_core_news_lg par defaut) dans le venv utilise par mitmdump, ce qui satisfait l'hypothese d'interpreteur ci-dessus sans presidio_python. Avec en_core_web_sm installe, aucun test Presidio n'est ignore. Le modele francais n'a pas ete exerce.

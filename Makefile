@@ -34,9 +34,9 @@ MITMDUMP := $(VENV_BIN)/mitmdump$(EXE)
 STAMP_BASE     := $(VENV)/.installed-base
 STAMP_PRESIDIO := $(VENV)/.installed-presidio
 STAMP_PX       := $(VENV)/.installed-px
-SOURCES := pii_config.py pii_core.py pii_detector.py pii_worker.py copilot_pii.py \
+SOURCES := pii_config.py pii_core.py pii_detector.py pii_worker.py copilot_pii.py gateway.py \
            check_proxy.py check_config.py fake_worker.py \
-           test_core.py test_addon.py test_regressions.py test_worker.py \
+           test_core.py test_addon.py test_regressions.py test_worker.py test_gateway.py \
            lab/fake_copilot.py lab/pki.py lab/test_lab.py
 
 .PHONY: help setup setup-presidio check-python venv install install-presidio \
@@ -125,8 +125,8 @@ px-config: ## Creer px.ini a partir de px.ini.example (sans ecraser)
 	@if [ -f $(PX_CONFIG) ]; then echo "$(PX_CONFIG) existe deja"; \
 	else cp px.ini.example $(PX_CONFIG); echo "$(PX_CONFIG) cree : adapter server"; fi
 
-run: $(STAMP_BASE) policy-check ## Lancer mitmdump (l'addon est charge par config.yaml)
-	COPILOT_PII_CONFIG=$(POLICY) $(MITMDUMP) --set confdir=.
+run: $(STAMP_BASE) policy-check ## Lancer la passerelle (gateway.py, addon integre, sans rechargement)
+	COPILOT_PII_CONFIG=$(POLICY) $(PY) gateway.py --set confdir=.
 
 install-px: $(STAMP_PX) ## Installer Px pour NTLM/Kerberos (facultatif)
 

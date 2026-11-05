@@ -12,6 +12,8 @@ async def main(path):
     optmanager.load_paths(opts, path)
     if opts.deferred:
         sys.exit('Unknown options in ' + path + ': ' + ', '.join(sorted(opts.deferred)))
+    if opts.scripts:
+        sys.exit('scripts is not allowed in ' + path + ': gateway.py builds the PII addon in')
     print('mitmproxy configuration OK:', path, '- mode', ', '.join(opts.mode))
 
 

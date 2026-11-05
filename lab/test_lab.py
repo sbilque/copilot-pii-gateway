@@ -259,20 +259,21 @@ class Mapping(unittest.TestCase):
 
 
 class HotReload(unittest.TestCase):
-    """F3: a script broken while mitmproxy runs. Runs last; leaves gateway-hot broken."""
+    """F3: the code of gateway-hot is broken while it runs. gateway.py loads no script, so
+    nothing is reloaded and the filter in memory keeps working."""
 
     def test_f3a_filter_active_before_break(self):
         lab_id, status, _, _ = post(GATEWAY_HOT, chat('Ecris a ' + EMAIL))
         self.assertEqual((status, recorded(lab_id, wait=1.0)), (403, None))
 
-    @unittest.expectedFailure  # Known gap, fixed by the launcher of milestone 4.
     def test_f3b_filter_still_active_after_runtime_break(self):
-        with open(HOT_DIR / 'copilot_pii.py', 'a') as script:
-            script.write('\nthis is not python(\n')
-        deadline = time.monotonic() + 15
-        while health(GATEWAY_HOT) == 403 and time.monotonic() < deadline:
-            time.sleep(0.5)  # 403 while the addon answers the canary
+        for name in ('copilot_pii.py', 'pii_core.py'):
+            with open(HOT_DIR / name, 'a') as script:
+                script.write('\nthis is not python(\n')
+        time.sleep(5)  # longer than the mitmproxy script reload period
+        self.assertEqual(health(GATEWAY_HOT), 403)  # addon still answers the canary
         lab_id, status, _, _ = post(GATEWAY_HOT, chat('Ecris a ' + EMAIL))
+        self.assertEqual(status, 403)
         self.assertIsNone(recorded(lab_id, wait=1.0), 'sensitive body reached the upstream in clear')
 
 
@@ -294,7 +295,7 @@ class Isolation(unittest.TestCase):
 
 
 def load_tests(loader, tests, pattern):
-    """HotReload last: it breaks gateway-hot on purpose."""
+    """HotReload last: it breaks the code of gateway-hot on purpose."""
     suite = unittest.TestSuite()
     for case in (Isolation, Nominal, Policy, Streaming, Faults, Mapping, HotReload):
         suite.addTests(loader.loadTestsFromTestCase(case))

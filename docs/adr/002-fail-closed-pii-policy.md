@@ -30,10 +30,10 @@ Utiliser des donnees synthetiques ; verifier le corps sortant et la restauration
 | Detection locale | Implementee : regex, litteraux, IPv4 RFC1918, Presidio facultatif hors processus |
 | Secrets bloques | Implemente via block_entities (SECRET obligatoire), y compris dans les noms d'outils exemptes |
 | Erreur ou delai depasse -> pas de transfert | Implemente dans l'addon (403, 413, 503, 502) ; delai borne pour Presidio (ADR-005) |
-| Absence du filtre -> pas de transfert | Non garanti : si l'addon echoue au chargement, mitmproxy peut continuer. Le canari le detecte sans le bloquer |
+| Absence du filtre -> pas de transfert | Implemente dans le processus par gateway.py (ADR-006) : demarrage refuse si politique invalide ou scripts, aucun rechargement a chaud ; le contournement du proxy reste a fermer par un verrou reseau |
 | Pas de journalisation des valeurs | Respecte par le code ; flow_detail 0 dans config.yaml ; le worker ne renvoie que des types |
 | Restauration des seuls alias connus et exacts | Implemente en mode redact, y compris avec un mapping vide (502 sur alias inconnu ou malforme, prefixe aleatoire a chaque instance) ; le mode block ne verifie pas les reponses |
 | Limites | Taille, profondeur, alias, cache et delai du detecteur bornes ; taille verifiee apres reception, concurrence non bornee |
 | Isolation des mappings | Non implementee : mapping global mono-utilisateur, sans TTL |
 
-Validation realisee : donnees synthetiques uniquement, tests de guillemets, antislashs, retours ligne, toutes les positions de coupure d'un alias et appels paralleles. Validation restante : corps effectivement transmis vers un serveur amont de test.
+Validation realisee : donnees synthetiques uniquement, tests de guillemets, antislashs, retours ligne, toutes les positions de coupure d'un alias et appels paralleles. Corps transmis verifies dans le lab Docker (serveur amont de test, Squid). Validation restante : poste reel et Copilot reel.

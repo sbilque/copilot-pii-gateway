@@ -1,4 +1,4 @@
-"""Run from this directory with mitmdump --set confdir=. (see docs/prototype.md)."""
+"""mitmproxy addon. Started by gateway.py, which builds it in; never load it with scripts or -s."""
 import ipaddress
 import json
 import os

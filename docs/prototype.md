@@ -2,7 +2,7 @@
 
 ## Portee
 
-Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 85 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
+Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 91 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
 
 ## Preparation
 
@@ -33,15 +33,15 @@ En reseau ferme, utiliser les miroirs et procedures de provisionnement approuves
 
 ## Configuration
 
-Adapter le proxy amont dans config.yaml. La politique JSON est chargee avec rejet des cles dupliquees et constantes non standard, puis validee dans le coeur avant initialisation de Presidio. Les listes exact_hosts et host_suffixes sont obligatoires (au moins une non vide), avec noms DNS minuscules sans schema, port, wildcard ou point final. Les limites sont des entiers positifs, sauf cache_size qui peut valoir zero ; max_aliases ne peut depasser 999999. Les regex, litteraux, categories bloquees et options Presidio sont controles. SECRET doit rester dans block_entities. Une politique invalide leve ConfigurationError au chargement ; cela ne force pas mitmproxy lui-meme a s'arreter.
+Adapter le proxy amont dans config.yaml. La politique JSON est chargee avec rejet des cles dupliquees et constantes non standard, puis validee dans le coeur avant initialisation de Presidio. Les listes exact_hosts et host_suffixes sont obligatoires (au moins une non vide), avec noms DNS minuscules sans schema, port, wildcard ou point final. Les limites sont des entiers positifs, sauf cache_size qui peut valoir zero ; max_aliases ne peut depasser 999999. Les regex, litteraux, categories bloquees et options Presidio sont controles. SECRET doit rester dans block_entities. Une politique invalide ou absente empeche le demarrage de la passerelle (code de sortie non nul).
 
 Depuis la racine du projet :
 
 ```bash
-mitmdump --set confdir=.
+make run    # ou : COPILOT_PII_CONFIG=policy.json python gateway.py --set confdir=.
 ```
 
-La configuration inclut deja scripts ; ne pas ajouter -s pour eviter de charger l'addon deux fois. Verifier les options avec `mitmdump --options`.
+`gateway.py` accepte les options de `mitmdump` et integre l'addon : pas de `scripts` dans config.yaml ni de `-s` (demarrage refuse), pas de rechargement a chaud. Pour changer de politique, redemarrer : le mapping est perdu (ADR-006). `mitmdump` ne sert plus qu'au diagnostic.
 
 Pour NTLM/Kerberos, lancer Px avec le serveur d'entreprise explicite et remplacer le mode par `upstream:http://127.0.0.1:3128`. Voir le [guide reseau](network/proxy-enterprise.md).
 
