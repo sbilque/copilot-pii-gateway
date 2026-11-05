@@ -1,6 +1,6 @@
 # Plan : lab d'intégration, filtre absent, isolation des alias
 
-État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalon 1 réalisé : voir [le lab](../lab/README.md).
+État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 3 réalisés : voir [le lab](../lab/README.md).
 
 ## Constats vérifiés avant de planifier
 
@@ -10,7 +10,7 @@
 | Script modifié et cassé pendant l'exécution | Rechargement à chaud, addon déchargé, proxy toujours en écoute, canari en 502 | **Ouvert** : le trafic Copilot traverserait le proxy sans filtre |
 | Addon chargé, `guard` pas encore initialisé | Exception dans le hook, refus 403 | Fermé |
 | Lanceur Python ajoutant l'addon directement (sans `scripts`) | Politique invalide : sortie en code 1 | Piste retenue pour supprimer le rechargement à chaud |
-| Rechargement de la politique | `load()` crée un nouveau `Guard` : mapping perdu, nouveau préfixe | Les alias déjà émis ne sont plus restaurés et, mapping vide, plus vérifiés |
+| Rechargement de la politique | `load()` crée un nouveau `Guard` : mapping perdu, nouveau préfixe | Les alias déjà émis ne sont plus restaurés ; depuis J3, ils sont refusés (502) même mapping vide |
 | Mapping | Dictionnaires `aliases`, `reverse` et `known` d'une seule instance `Guard`, sans TTL ni clé de portée | Partagé par toutes les fenêtres et tous les clients du port |
 
 Confirmé par le lab : une passerelle sans addon transmet l'email synthétique en clair à l'amont, et le test N2 échoue.
@@ -162,7 +162,7 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 |---|---|---|---|
 | J1 | A1 à A4 et A6 : lab minimal, N1 à N3, direct_proxy, CI, devcontainer | — | M, **fait** |
 | J2 | A5 complet, avec F3 marqué « échec attendu » | J1 | M, **fait** |
-| J3 | C1 : vérification systématique des alias | J1 | S |
+| J3 | C1 : vérification systématique des alias | J1 | S, **fait** |
 | J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S |
 | J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M |
 | J6 | C4 et B4 : authentification du proxy local et supervision | J5 | M |

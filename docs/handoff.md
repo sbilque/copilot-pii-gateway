@@ -19,12 +19,14 @@ Toute sortie Internet passe par un proxy d'entreprise, sans authentification ou 
 | 5979695 | Makefile, check_config.py, requirements-px.txt |
 | 4843ce4 | Mise a jour des ADR et de ce handoff |
 | jalon 1 | Lab Docker (mitmproxy, Squid, faux Copilot), devcontainer, CI GitHub Actions, plan |
+| jalon 2 | Lab : SSE, pannes F1 a F7, canari depuis le reseau client |
+| jalon 3 | Verification des alias en mode redact meme avec un mapping vide |
 
-Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 80 tests reproductibles.
+Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 85 tests reproductibles.
 
 Fichiers : pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
 
-Valide : 80 tests unitaires, dont 22 avec processus enfants reels et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de mitmdump et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 5 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N3 et isolation reseau), executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
+Valide : 85 tests unitaires, dont 22 avec processus enfants reels et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de mitmdump et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 21 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7 dont F3 en echec attendu, C1, isolation reseau) et la verification de demarrage F4, executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
 
 ## Demarrage rapide
 
@@ -48,7 +50,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 - Alias __PII_<12 hex>_<6 chiffres>__, stables pendant la vie du mapping, propagation des valeurs connues (3 caracteres minimum, frontieres de mots), cache LRU par empreinte BLAKE2b.
 - Parcours JSON : schema racine reconnu exige (messages, prompt, input, system, instructions, suffix) ; detection dans un champ structurel ou un nom de cle -> blocage ; `tools` analyse sans reecriture ; noms d'outils preserves sauf categorie bloquee ; blocs signes, thinking, multimedia et gros data: refuses.
 - Addon : hotes Copilot seulement ; HTTPS, JSON, sans query ni upgrade ; 413 sur longueur declaree excessive ; 403 sur refus de politique ; 503 si le detecteur est indisponible ; Accept-Encoding: identity ; octets originaux conserves si rien ne change.
-- Restauration en mode redact avec mapping non vide : JSON recursif et SSE entierement bufferise ; arguments, partial_json et deltas Responses parses avant restauration ; alias inconnu ou malforme -> 502.
+- Restauration en mode redact, meme avec un mapping vide : JSON recursif et SSE entierement bufferise ; arguments, partial_json et deltas Responses parses avant restauration ; alias inconnu ou malforme -> 502.
 - Canari pii-gate.invalid : loopback sans Origin ; corps neutre, email synthetique bloque ou pseudonymise puis restaure, etat du detecteur.
 
 ## Ecarts avec V3
@@ -72,7 +74,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 | Detection lente bloquant la boucle | Traite par ADR-005 |
 | Plafond verifie apres buffering, pas de limite memoire globale ni de concurrence | Ouvert |
 | Mapping global mono-utilisateur, sans TTL ni isolation | Ouvert |
-| Alias non verifies hors mode redact ou mapping vide | Ouvert, documente |
+| Alias non verifies avec un mapping vide | Traite (jalon 3) ; le mode block ne verifie pas les reponses |
 | Couverture protocolaire et chemins JSON entre evenements SSE | Partiel, a tester sur captures representatives |
 | Absence du filtre si l'addon echoue au chargement | Ouvert : arret au demarrage, mais un rechargement a chaud rate laisse le proxy ouvert (transfert en clair confirme dans le lab) ; lanceur prevu au jalon 4 |
 | Health ne prouve pas le routage de la fenetre VS Code | Ouvert |
@@ -104,7 +106,7 @@ Plan detaille et decisions : [plan.md](plan.md).
 
 | Etape | Etat |
 |---|---|
-| Reconstruire le prototype et rendre les tests reproductibles | Fait (80 tests) |
+| Reconstruire le prototype et rendre les tests reproductibles | Fait (85 tests) |
 | Isoler les detecteurs et borner leur delai | Fait pour Presidio (ADR-005) |
 | Preserver les octets si rien ne change ; bloquer si la protection est impossible | Fait |
 | Auditer restauration JSON imbriquee et SSE | Fait pour les cas testes ; blocs signes refuses |

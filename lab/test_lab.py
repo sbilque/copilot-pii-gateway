@@ -21,6 +21,7 @@ UPSTREAM = 'https://api.business.githubcopilot.com/chat/completions'
 UPSTREAM_DOWN = 'https://down.business.githubcopilot.com/chat/completions'
 GATEWAY_BLOCK = os.environ.get('LAB_GATEWAY_BLOCK', 'http://gateway-block:8080')
 GATEWAY_REDACT = os.environ.get('LAB_GATEWAY_REDACT', 'http://gateway-redact:8080')
+GATEWAY_FRESH = os.environ.get('LAB_GATEWAY_FRESH', 'http://gateway-fresh:8080')
 GATEWAY_NOPROXY = os.environ.get('LAB_GATEWAY_NOPROXY', 'http://gateway-noproxy:8080')
 GATEWAY_PRESIDIO = os.environ.get('LAB_GATEWAY_PRESIDIO', 'http://gateway-presidio:8080')
 GATEWAY_HOT = os.environ.get('LAB_GATEWAY_HOT', 'http://gateway-hot:8080')
@@ -234,6 +235,29 @@ class Faults(unittest.TestCase):
             self.assertEqual(json.loads(reply)['choices'][0]['message']['content'], 'Ecris a ' + EMAIL)
 
 
+class Mapping(unittest.TestCase):
+    """C1: gateway-fresh never sees sensitive data, so its mapping stays empty."""
+
+    def test_c1_alias_from_another_instance_refused(self):
+        lab_id, status, _, _ = post(GATEWAY_REDACT, chat('Ecris a ' + EMAIL))
+        self.assertEqual(status, 200)
+        alias = TOKEN.search(recorded(lab_id).decode()).group()
+        lab_id, status, _, reply = post(GATEWAY_FRESH, chat('Rappel ' + alias))
+        self.assertIn(alias.encode(), recorded(lab_id))  # an alias is not sensitive by itself
+        self.assertEqual(status, 502, reply)
+        self.assertNotIn(b'__PII_', reply)
+
+    def test_c1_unknown_alias_on_empty_mapping_refused(self):
+        _, status, _, reply = post(GATEWAY_FRESH, chat('Bonjour'), 'unknown-alias')
+        self.assertEqual(status, 502, reply)
+        self.assertNotIn(b'__PII_', reply)
+
+    def test_c1_neutral_reply_on_empty_mapping_passes(self):
+        _, status, _, reply = post(GATEWAY_FRESH, chat('Bonjour'))
+        self.assertEqual(status, 200, reply)
+        self.assertEqual(json.loads(reply)['choices'][0]['message']['content'], 'Bonjour')
+
+
 class HotReload(unittest.TestCase):
     """F3: a script broken while mitmproxy runs. Runs last; leaves gateway-hot broken."""
 
@@ -272,7 +296,7 @@ class Isolation(unittest.TestCase):
 def load_tests(loader, tests, pattern):
     """HotReload last: it breaks gateway-hot on purpose."""
     suite = unittest.TestSuite()
-    for case in (Isolation, Nominal, Policy, Streaming, Faults, HotReload):
+    for case in (Isolation, Nominal, Policy, Streaming, Faults, Mapping, HotReload):
         suite.addTests(loader.loadTestsFromTestCase(case))
     return suite
 

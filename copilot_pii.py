@@ -114,10 +114,15 @@ class CopilotPII:
     def response(self, flow):
         if not self.target(flow.request.host) or flow.metadata.get('pii_blocked') or flow.response is None:
             return
-        if self.guard.mode != 'redact' or not self.guard.reverse:
+        if self.guard.mode != 'redact':
             return
+        # Always checked, even with an empty mapping: an alias unknown to this instance
+        # (restart, lost mapping, another instance) must never reach the client raw.
         try:
-            flow.response.content = self.guard.response(flow.response.content, flow.response.headers.get('content-type', ''))
+            body, content_type = flow.response.content, flow.response.headers.get('content-type', '')
+            if not self.guard.reverse and not self.guard.may_hold_alias(body, content_type):
+                return  # nothing to restore and no alias marker: bytes unchanged
+            flow.response.content = self.guard.response(body, content_type)
         except Exception:
             self.error(flow, 502)
 

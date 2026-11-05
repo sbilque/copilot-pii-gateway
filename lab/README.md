@@ -33,6 +33,7 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 |---|---|
 | `gateway-block` | Politique du depot, mode block |
 | `gateway-redact` | Mode redact, plus un literal avec guillemet et antislash (echappement JSON des alias) |
+| `gateway-fresh` | Mode redact, ne recoit jamais de donnee sensible : mapping toujours vide (C1) |
 | `gateway-noproxy` | Proxy amont introuvable (F2) |
 | `gateway-presidio` | Detecteur externe factice (`fake_worker.py` via `lab/fake_python.sh`), delai 1 s (F5) |
 | `gateway-hot` | Script charge depuis le volume `hot`, casse a chaud par les tests (F3) |
@@ -64,6 +65,7 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 | F5 | Detecteur lent puis plante : 503 sans transfert, puis reprise apres redemarrage du worker |
 | F6 | Alias inconnu dans la reponse : 502, aucun alias renvoye au client |
 | F7 | Reponse `gzip` : restauree ou refusee explicitement, jamais d'alias brut |
+| C1 | Mapping vide : alias d'une autre instance ou alias inconnu -> 502 sans alias renvoye ; reponse neutre transmise |
 | I1, I2 | Squid et l'amont injoignables depuis le reseau client |
 
 Les tests lisent ce que l'amont a reellement recu. Une passerelle sans addon fait echouer N2 : verifie en retirant `scripts` de la configuration.

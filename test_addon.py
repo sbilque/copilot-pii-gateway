@@ -77,6 +77,41 @@ class AddonTests(unittest.TestCase):
         self.addon.response(f)
         self.assertEqual(f.response.status_code, 502)
 
+    def respond(self, body, content_type='application/json'):
+        f = flow(); f.response = Response.make(200, body, {'content-type': content_type})
+        self.addon.response(f)
+        return f.response
+
+    def test_empty_mapping_unknown_alias_blocked(self):
+        # Fresh instance (restart, lost mapping): no alias known, response still checked.
+        self.assertFalse(self.addon.guard.reverse)
+        self.assertEqual(self.respond(b'{"text":"__PII_aaaaaaaaaaaa_000001__"}').status_code, 502)
+        sse = b'data: {"choices":[{"index":0,"delta":{"content":"__PII_aaaaaaaaaaaa_000001__"}}]}\n\n'
+        self.assertEqual(self.respond(sse, 'text/event-stream').status_code, 502)
+        self.assertEqual(self.respond(b'see __PII_aaaaaaaaaaaa_000001__', 'text/plain').status_code, 502)
+
+    def test_previous_instance_alias_blocked(self):
+        previous = guard()
+        previous.request(request('a@example.test'))
+        token = next(iter(previous.reverse))
+        self.addon.guard.request(request('b@example.test'))  # new instance, new random prefix
+        self.assertNotEqual(previous.prefix, self.addon.guard.prefix)
+        self.assertEqual(self.respond(json.dumps({'text': token}).encode()).status_code, 502)
+
+    def test_empty_mapping_escaped_alias_blocked(self):
+        escaped = json.dumps({'text': '__PII_aaaaaaaaaaaa_000001__'}).replace('_', '\\u005f').encode()
+        self.assertEqual(self.respond(escaped).status_code, 502)
+
+    def test_empty_mapping_neutral_bytes_unchanged(self):
+        for body, kind in [(b'{"text": "ok",  "n": 1}', 'application/json'), (b'\x89PNG', 'image/png'),
+                           (b'data: {"x":"\\u00e9"}\n\n', 'text/event-stream')]:
+            response = self.respond(body, kind)
+            self.assertEqual((response.status_code, response.content), (200, body))
+
+    def test_block_mode_response_untouched(self):
+        self.addon.guard = guard('block')
+        self.assertEqual(self.respond(b'{"text":"__PII_aaaaaaaaaaaa_000001__"}').status_code, 200)
+
     def test_selftest(self):
         f = flow(host='pii-gate.invalid', scheme='http', method='GET')
         run(self.addon.request(f))

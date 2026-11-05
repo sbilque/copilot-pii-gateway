@@ -77,6 +77,12 @@ services:
       # Literal avec guillemet et antislash : verifie l'echappement JSON des alias.
       LAB_POLICY_PATCH: '{"literals": ["CLIENT_DEMO_CONFIDENTIEL", "Projet \"Alpha\\Beta\""]}'
 
+  # C1 : instance redact neuve, mapping toujours vide (redemarrage, perte du mapping).
+  gateway-fresh:
+    <<: *gateway
+    environment:
+      LAB_MODE: redact
+
   # F2 : proxy d'entreprise injoignable (nom non resolu), aucune sortie directe possible.
   gateway-noproxy:
     <<: *gateway
@@ -133,6 +139,7 @@ services:
     depends_on:
       gateway-block: {condition: service_healthy}
       gateway-redact: {condition: service_healthy}
+      gateway-fresh: {condition: service_healthy}
       gateway-noproxy: {condition: service_healthy}
       gateway-presidio: {condition: service_healthy}
       gateway-hot: {condition: service_healthy}

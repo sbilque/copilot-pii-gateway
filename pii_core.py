@@ -231,6 +231,14 @@ class Guard:
         restored = probe.response(dumps({'text': masked}), 'application/json')
         return loads(restored) == {'text': 'canary@example.test'}
 
+    @staticmethod
+    def may_hold_alias(body, content_type):
+        """True when the body could carry an alias, including through JSON unicode escapes."""
+        if b'__PII_' in body:
+            return True
+        kind = content_type.split(';')[0].strip()
+        return b'\\u' in body and (kind.endswith('json') or kind == 'text/event-stream')
+
     def text(self, value):
         def replace(match):
             if match.group() not in self.reverse:

@@ -8,7 +8,7 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 - `pii_core.py` : detection, alias, propagation, cache, parcours JSON et restauration.
 - `copilot_pii.py` : adaptateur mitmproxy (hooks async).
 - `pii_detector.py`, `pii_worker.py` : Presidio dans un processus separe, avec delai borne, relance et refus en cas d'echec.
-- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py` : 80 tests, dont hooks mitmproxy simules et processus worker reels pilotes par `fake_worker.py`.
+- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py` : 85 tests, dont hooks mitmproxy simules et processus worker reels pilotes par `fake_worker.py`.
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
 - `check_config.py` : validation de config.yaml par le gestionnaire d'options mitmproxy.
@@ -33,7 +33,7 @@ Non valide contre Copilot reel ou un proxy NTLM/Kerberos. Le worker Presidio a e
 
 Difference importante avec le prototype historique : cette reconstruction bufferise integralement les reponses SSE avant restauration. Ce n'est pas un streaming interactif. Les plafonds de taille ne constituent pas une limite memoire avant reception.
 
-Les secrets detectes dans les corps analyses sont bloques, y compris dans les noms d'outils autrement exemptes. Lorsqu'une restauration est active (mode redact et mapping non vide), les alias inconnus ou malformes provoquent un refus de reponse. Cela ne garantit pas la detection de toutes les PII ni de tous les alias alteres. Aucune execution d'outils avec effets de bord pendant les essais.
+Les secrets detectes dans les corps analyses sont bloques, y compris dans les noms d'outils autrement exemptes. En mode redact, chaque reponse est verifiee, meme avec un mapping vide : un alias inconnu (redemarrage, autre instance) ou malforme provoque un refus de reponse ; sans marqueur d'alias et sans mapping, les octets passent inchanges. Cela ne garantit pas la detection de toutes les PII ni de tous les alias alteres. Aucune execution d'outils avec effets de bord pendant les essais.
 
 Le client officiel conserve la gestion de l'authentification Copilot ; l'addon ne gere pas les jetons. L'interception HTTPS n'implique pas que les credentials soient invisibles au processus proxy. Les profils reseau restent des configurations manuelles, et le transport natif reste une piste a evaluer, pas une fonction publiee.
 

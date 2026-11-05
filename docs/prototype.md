@@ -2,7 +2,7 @@
 
 ## Portee
 
-Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 80 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
+Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 85 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
 
 ## Preparation
 
@@ -87,7 +87,7 @@ Pendant le chargement du modele (plusieurs secondes) et apres chaque relance, le
 - Mapping global mono-utilisateur en memoire ; pas de TTL ni isolation par conversation. Redemarrage et historique fournisseur opaque non garantis.
 - Detection imparfaite et protocole non exhaustif : contenus encodes ou noms de champs nouveaux peuvent echapper aux classifications.
 - Les chaines arguments et partial_json sont parsees avant restauration. Les evenements Responses response.function_call_arguments.delta sont explicitement classes comme arguments JSON, y compris avec le seul champ SSE event ; item_id ou output_index est requis pour identifier le canal. Les tests couvrent guillemets, antislashs, retours ligne, toutes les positions de coupure d'un exemple et deux appels paralleles. Cela ne prouve pas la couverture de tous les schemas ni la stabilite des chemins JSON entre evenements ; tester des captures synthetiques representatives avant toute execution.
-- La restauration de l'addon ne s'active qu'en mode redact avec un mapping non vide. Hors de ce cas, les alias presents dans une reponse ne sont pas verifies par ce chemin.
+- En mode redact, l'addon verifie chaque reponse, meme avec un mapping vide : tout motif `__PII_` (y compris via echappements `\u` en JSON ou SSE) passe par la restauration stricte et un alias inconnu donne 502. Le prefixe d'alias est tire au hasard a chaque instance de `Guard`. En mode block, les reponses ne sont pas verifiees.
 - Headers, URLs, GET sans corps, telemetrie, agents cloud, appels MCP directs et contexte obtenu cote serveur non couverts.
 - Les domaines non cibles peuvent etre tunnelises sans inspection ; aucune garantie globale anti-fuite sans regles reseau.
 - Une erreur de requete donne un 403, un detecteur indisponible, sature ou en depassement un 503, une longueur declaree excessive un 413 et une erreur de restauration un 502.
