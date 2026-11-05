@@ -95,7 +95,7 @@ presidio-model: $(STAMP_PRESIDIO) ## Telecharger le modele spaCy (PRESIDIO_MODEL
 compile: $(PY) ## Compiler les sources Python
 	$(PY) -m py_compile $(SOURCES)
 
-test: $(PY) ## Lancer les tests unitaires (bibliotheque standard)
+test: $(STAMP_BASE) ## Lancer les tests unitaires (mitmproxy installe pour les tests du lanceur)
 	$(PY) -m unittest -v
 
 policy-check: $(PY) ## Valider la politique (parsing strict + validate_config)
