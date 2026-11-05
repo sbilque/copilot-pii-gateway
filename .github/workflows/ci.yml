@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Tests unitaires
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: make check
+
+  lab:
+    name: Lab d'integration
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tests d'integration (mitmproxy, Squid, faux Copilot)
+        run: make lab
+      - name: Journaux et enregistrements (donnees synthetiques)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lab-out
+          path: lab/out/
+          if-no-files-found: ignore
+          retention-days: 7

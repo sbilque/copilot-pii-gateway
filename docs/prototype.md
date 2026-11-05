@@ -15,6 +15,7 @@ Avec make (Python 3.12 minimum, `PYTHON=python3.12` pour en choisir un autre) :
 | `make px-config`, `make px` | px.ini depuis l'exemple, installation bornee de Px puis lancement |
 | `make run`, `make canary` | proxy au premier plan, puis canari depuis un autre terminal |
 | `make doctor` | etat de l'environnement et etapes manuelles restantes |
+| `make lab` | lab d'integration Docker, voir [lab/README.md](../lab/README.md) |
 | `make clean`, `make distclean` | caches, puis venv ; la CA locale est conservee |
 
 `make ca` genere la CA mitmproxy dans le depot (fichiers ignores par Git) sans l'installer dans un magasin systeme. `make config-check` signale les options inconnues et un proxy amont reste sur l'exemple. Le telechargement du modele spaCy passe par `spacy download` : en reseau ferme, installer le modele depuis le miroir approuve.

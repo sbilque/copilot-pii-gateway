@@ -17,12 +17,14 @@ Toute sortie Internet passe par un proxy d'entreprise, sans authentification ou 
 | 1f2f64e | Validation de la politique, secrets dans les noms d'outils, arguments SSE Responses, canari renforce (58 tests) |
 | f2ef1eb | Presidio dans un worker a delai borne, ADR-005 (80 tests) |
 | 5979695 | Makefile, check_config.py, requirements-px.txt |
+| 4843ce4 | Mise a jour des ADR et de ce handoff |
+| jalon 1 | Lab Docker (mitmproxy, Squid, faux Copilot), devcontainer, CI GitHub Actions, plan |
 
 Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 80 tests reproductibles.
 
 Fichiers : pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
 
-Valide : 80 tests unitaires, dont 22 avec processus enfants reels et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de mitmdump et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Non valide : trafic Copilot reel, proxy d'entreprise, NTLM/Kerberos, modeles francais, charge, serveur amont de test.
+Valide : 80 tests unitaires, dont 22 avec processus enfants reels et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de mitmdump et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 5 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N3 et isolation reseau), executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
 
 ## Demarrage rapide
 
@@ -31,7 +33,10 @@ make setup        # venv, mitmproxy, CA locale, tests, politique, config.yaml
 make doctor       # etat et etapes manuelles
 make run          # proxy au premier plan
 make canary       # depuis un autre terminal
+make lab          # lab d'integration Docker complet
 ```
+
+Le devcontainer (`.devcontainer/`) fournit Python 3.12, make et Docker ; `make setup` y est lance a la creation.
 
 Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique avec accord securite, proxy VS Code. Voir le [guide du prototype](prototype.md).
 
@@ -69,7 +74,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 | Mapping global mono-utilisateur, sans TTL ni isolation | Ouvert |
 | Alias non verifies hors mode redact ou mapping vide | Ouvert, documente |
 | Couverture protocolaire et chemins JSON entre evenements SSE | Partiel, a tester sur captures representatives |
-| Absence du filtre si l'addon echoue au chargement | Ouvert : le canari detecte, ne verrouille pas |
+| Absence du filtre si l'addon echoue au chargement | Ouvert : arret au demarrage, mais un rechargement a chaud rate laisse le proxy ouvert (transfert en clair confirme dans le lab) ; lanceur prevu au jalon 4 |
 | Health ne prouve pas le routage de la fenetre VS Code | Ouvert |
 | Reprise apres redemarrage, historique fournisseur opaque | Non garanti |
 | En-tetes, telemetrie, agents cloud, contexte serveur, MCP direct | Non couverts |
@@ -94,6 +99,9 @@ Voir ADR-004 et le guide reseau. Les profils direct_proxy et integrated_proxy so
 
 ## Plan de reprise
 
+Plan detaille et decisions : [plan.md](plan.md).
+
+
 | Etape | Etat |
 |---|---|
 | Reconstruire le prototype et rendre les tests reproductibles | Fait (80 tests) |
@@ -101,11 +109,12 @@ Voir ADR-004 et le guide reseau. Les profils direct_proxy et integrated_proxy so
 | Preserver les octets si rien ne change ; bloquer si la protection est impossible | Fait |
 | Auditer restauration JSON imbriquee et SSE | Fait pour les cas testes ; blocs signes refuses |
 | Outillage de developpement reproductible | Fait (Makefile) |
-| Integration avec vrai mitmproxy, serveur amont de test et proxy de test, y compris pannes | A faire, priorite suivante |
+| Integration avec vrai mitmproxy, serveur amont de test et proxy de test | Fait pour N1 a N3 (lab J1) ; SSE, pannes et canari au jalon 2 |
 | Limiter memoire avant buffering et concurrence ; isolation et duree de vie des mappings | A faire |
 | Decider du streaming SSE incremental | A decider |
 | Verrou reseau et supervision de l'absence du filtre | A faire |
 | Separer core, protocol, transports, upstream, CLI ; profils reseau executables | A faire |
+| NTLM/Kerberos reel | Pas de test automatise ; methode manuelle dans le guide reseau |
 | Transport natif experimental, wrap/unwrap, doctor VS Code | Differe |
 | Validation sur poste autorise avec donnees synthetiques, pannes et identites | A faire |
 

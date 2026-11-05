@@ -22,3 +22,4 @@ build/
 mitmproxy-ca*
 mitmproxy-dhparam*
 px.ini
+lab/out/

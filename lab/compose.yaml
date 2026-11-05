@@ -1,0 +1,96 @@
+# Lab d'integration local : client -> passerelle (mitmproxy + addon) -> Squid -> faux Copilot.
+# Trois reseaux internes, sans acces Internet. Donnees synthetiques uniquement.
+name: copilot-pii-lab
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: lab/Dockerfile
+  image: copilot-pii-lab:dev
+
+x-gateway: &gateway
+  <<: *app
+  command: ["/app/lab/gateway.sh"]
+  networks: [client, egress]
+  volumes:
+    - pki:/pki:ro
+  depends_on:
+    pki: {condition: service_completed_successfully}
+    corp-proxy: {condition: service_healthy}
+  healthcheck:
+    test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8080), 2)"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+services:
+  pki:
+    <<: *app
+    command: ["python", "/app/lab/pki.py", "/pki"]
+    network_mode: none
+    volumes:
+      - pki:/pki
+
+  fake-copilot:
+    <<: *app
+    command: ["python", "/app/lab/fake_copilot.py"]
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    networks:
+      upstream:
+        aliases: [api.business.githubcopilot.com]
+    volumes:
+      - pki:/pki:ro
+      - recordings:/recordings
+    depends_on:
+      pki: {condition: service_completed_successfully}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 443), 2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  corp-proxy:
+    build:
+      context: ..
+      dockerfile: lab/Dockerfile.squid
+    image: copilot-pii-lab-squid:dev
+    networks: [egress, upstream]
+    depends_on:
+      fake-copilot: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/3128"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  gateway-block:
+    <<: *gateway
+    environment:
+      LAB_MODE: block
+
+  gateway-redact:
+    <<: *gateway
+    environment:
+      LAB_MODE: redact
+
+  tests:
+    <<: *app
+    profiles: [test]
+    command: ["python", "/app/lab/test_lab.py"]
+    networks: [client]
+    volumes:
+      - pki:/pki:ro
+      - recordings:/recordings:ro
+    depends_on:
+      gateway-block: {condition: service_healthy}
+      gateway-redact: {condition: service_healthy}
+
+networks:
+  client: {internal: true}
+  egress: {internal: true}
+  upstream: {internal: true}
+
+volumes:
+  pki:
+  recordings:

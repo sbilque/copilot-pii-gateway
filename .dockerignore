@@ -1,0 +1,9 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+mitmproxy-ca*
+mitmproxy-dhparam*
+px.ini
+.env
+.env.*

@@ -46,4 +46,5 @@ Tester chaque profil avec une destination approuvee ; confirmer l'identite et le
 - direct_proxy : mode `upstream:` de config.yaml vers le proxy d'entreprise. `make config-check` valide le fichier et signale l'adresse d'exemple restante.
 - integrated_proxy : `make px-config` cree px.ini depuis l'exemple, `make px` installe Px (version bornee dans requirements-px.txt) et l'ecoute sur 127.0.0.1:3128 ; le mode upstream doit alors pointer vers ce port. Demarrage verifie avec Px 0.13 ; aucune authentification NTLM/Kerberos testee.
 - Pas de gestionnaire de profils ni de bascule automatique ; aucun repli direct n'est configure, mais aucun verrou reseau ne l'empeche.
+- Le lab d'integration utilise un Squid sans authentification. NTLM/Kerberos n'est pas teste automatiquement : la validation se fait manuellement sur un poste autorise, selon la methode du guide reseau, et n'est pas bloquante pour le developpement.
 - La passerelle ne gere aucun jeton : l'invariant sur les renouvellements de jetons s'appliquera au transport natif s'il est implemente.

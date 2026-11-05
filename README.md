@@ -19,6 +19,8 @@ make setup      # venv, mitmproxy, CA locale, tests et validations
 make help       # liste des cibles
 ```
 
+Lab d'integration Docker (mitmproxy reel, Squid, faux serveur Copilot) : `make lab`, voir [lab/README.md](lab/README.md). Un devcontainer et une CI GitHub Actions executent les memes commandes.
+
 Sans make : `python -m unittest -v`.
 
 Les tests utilisent la bibliotheque standard ; mitmproxy et Presidio ne sont pas requis. Un test supplementaire avec Presidio reel s'execute si `presidio_analyzer` et `en_core_web_sm` sont installes, sinon il est ignore.

@@ -15,6 +15,10 @@ POLICY        ?= policy.json
 PX_CONFIG     ?= px.ini
 PRESIDIO_MODEL ?= fr_core_news_lg
 CANARY_PROXY  ?= http://127.0.0.1:8080
+DOCKER        ?= docker
+LAB_FILES     ?= -f lab/compose.yaml
+LAB_BUILD     ?= --build
+LAB           := $(DOCKER) compose $(LAB_FILES)
 
 ifeq ($(OS),Windows_NT)
   VENV_BIN := $(VENV)/Scripts
@@ -32,11 +36,13 @@ STAMP_PRESIDIO := $(VENV)/.installed-presidio
 STAMP_PX       := $(VENV)/.installed-px
 SOURCES := pii_config.py pii_core.py pii_detector.py pii_worker.py copilot_pii.py \
            check_proxy.py check_config.py fake_worker.py \
-           test_core.py test_addon.py test_regressions.py test_worker.py
+           test_core.py test_addon.py test_regressions.py test_worker.py \
+           lab/fake_copilot.py lab/pki.py lab/test_lab.py
 
 .PHONY: help setup setup-presidio check-python venv install install-presidio \
         install-px presidio-model test compile policy-check config-check check ca ca-path \
-        px-config run px canary doctor clean distclean
+        px-config run px canary doctor clean distclean \
+        lab lab-up lab-test lab-logs lab-shell lab-collect lab-down
 
 help: ## Afficher cette aide
 	@echo "Cibles disponibles :"
@@ -150,6 +156,34 @@ doctor: ## Etat de l'environnement et etapes manuelles
 	@echo "  2. Installer mitmproxy-ca-cert.pem dans le magasin reconnu par Copilot, avec accord securite."
 	@echo "  3. VS Code : {\"http.proxy\": \"$(CANARY_PROXY)\", \"http.proxyStrictSSL\": true}"
 	@echo "  4. make run, puis make canary avant toute utilisation."
+
+# --- Lab d'integration (Docker) ---------------------------------------------
+
+lab-up: ## Demarrer le lab : PKI, faux Copilot, Squid, passerelles block et redact
+	$(LAB) up -d $(LAB_BUILD) --wait
+
+lab-test: lab-up ## Lancer les tests d'integration dans le lab (reconstruit si le code change)
+	$(LAB) run --rm tests
+
+lab-logs: ## Suivre les journaux du lab
+	$(LAB) logs -f
+
+lab-shell: ## Shell dans la passerelle redact
+	$(LAB) exec gateway-redact sh
+
+lab-collect: ## Copier journaux et enregistrements amont dans lab/out (diagnostic, CI)
+	@mkdir -p lab/out
+	-$(LAB) logs --no-color > lab/out/logs.txt 2>&1
+	-$(LAB) cp fake-copilot:/recordings lab/out/
+	-$(LAB) exec -T corp-proxy cat /var/log/squid/access.log > lab/out/squid-access.log
+
+lab-down: ## Arreter le lab et supprimer ses volumes
+	$(LAB) --profile test down -v --remove-orphans
+
+lab: ## Cycle complet : demarrage, tests, arret garanti
+	@status=0; $(MAKE) --no-print-directory lab-test || status=$$?; \
+	if [ $$status -ne 0 ]; then $(MAKE) --no-print-directory lab-collect; fi; \
+	$(MAKE) --no-print-directory lab-down; exit $$status
 
 # --- Nettoyage -------------------------------------------------------------
 

@@ -2,6 +2,8 @@
 
 - [Handoff](handoff.md) : contexte, etat reel du depot, ecarts avec V3, risques et plan de reprise.
 - [Guide du prototype](prototype.md) : installation avec make, configuration, politique et limites.
+- [Plan](plan.md) : lab d'integration, filtre absent, isolation des alias ; jalons et decisions.
+- [Lab d'integration](../lab/README.md) : banc Docker, commandes et scenarios.
 - [ADR-001](adr/001-architecture-and-transports.md) : architecture et deux transports.
 - [ADR-002](adr/002-fail-closed-pii-policy.md) : politique de securite PII.
 - [ADR-004](adr/004-enterprise-proxy-authentication.md) : proxy sans authentification ou NTLM/Kerberos.
