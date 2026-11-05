@@ -11,10 +11,15 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 - `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py` : 80 tests, dont hooks mitmproxy simules et processus worker reels pilotes par `fake_worker.py`.
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
+- `check_config.py` : validation de config.yaml par le gestionnaire d'options mitmproxy.
+- `Makefile` : preparation et verification de l'environnement de developpement.
 
 ```bash
-python -m unittest -v
+make setup      # venv, mitmproxy, CA locale, tests et validations
+make help       # liste des cibles
 ```
+
+Sans make : `python -m unittest -v`.
 
 Les tests utilisent la bibliotheque standard ; mitmproxy et Presidio ne sont pas requis. Un test supplementaire avec Presidio reel s'execute si `presidio_analyzer` et `en_core_web_sm` sont installes, sinon il est ignore.
 

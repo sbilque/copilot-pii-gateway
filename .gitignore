@@ -17,3 +17,8 @@ logs/
 dist/
 build/
 *.egg-info/
+
+# CA locale generee par make ca
+mitmproxy-ca*
+mitmproxy-dhparam*
+px.ini
