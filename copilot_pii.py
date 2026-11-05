@@ -1,15 +1,15 @@
-"""Run from this directory with mitmdump -s copilot_pii.py (see docs/prototype.md)."""
+"""Run from this directory with mitmdump --set confdir=. (see docs/prototype.md)."""
 import ipaddress
 import json
 import os
 from pathlib import Path
 from mitmproxy import http
-from pii_core import Guard
+from pii_core import Guard, loads
 
 
 class CopilotPII:
     def load(self, loader):
-        self.guard = Guard(json.loads(Path(os.environ.get('COPILOT_PII_CONFIG', 'policy.json')).read_text()))
+        self.guard = Guard(loads(Path(os.environ.get('COPILOT_PII_CONFIG', 'policy.json')).read_bytes()))
 
     def target(self, host):
         host = host.lower().rstrip('.')
@@ -40,12 +40,7 @@ class CopilotPII:
                 peer = flow.client_conn.peername[0]
                 if not ipaddress.ip_address(peer).is_loopback or flow.request.headers.get('origin'):
                     return self.error(flow, 403)
-                sample = b'{"messages":[{"role":"user","content":"canary@example.test"}]}'
-                try:
-                    result = self.guard.request(sample)
-                    ok = self.guard.mode == 'redact' and result != sample
-                except ValueError:
-                    ok = self.guard.mode == 'block'
+                ok = self.guard.check()
                 flow.metadata['pii_blocked'] = True
                 flow.response = http.Response.make(200 if ok else 503, json.dumps({'ready': ok, 'mode': self.guard.mode}).encode(),
                                                   {'content-type': 'application/json'})

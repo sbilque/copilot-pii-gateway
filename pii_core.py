@@ -1,13 +1,19 @@
 """Experimental request PII filter; responses are fully buffered, including SSE."""
+import copy
 import hashlib
 import ipaddress
 import json
 import re
 import secrets
 from collections import OrderedDict, defaultdict
+from pii_config import validate_config
 
 
 class PolicyError(ValueError):
+    pass
+
+
+class SensitiveDataError(PolicyError):
     pass
 
 
@@ -37,6 +43,7 @@ class Guard:
     TOKEN = re.compile(r'__PII_[0-9a-f]{12}_[0-9]{6}__')
 
     def __init__(self, config):
+        config = validate_config(config)
         self.config = config
         self.mode = config.get('mode', 'block')
         if self.mode not in ('block', 'redact'):
@@ -97,7 +104,7 @@ class Guard:
             raise PolicyError('encoded content unsupported')
         found = self.spans(text, slow)
         if found and (self.mode == 'block' or not writable or any(k in self.secrets for _, _, k in found)):
-            raise PolicyError('sensitive data blocked')
+            raise SensitiveDataError('sensitive data blocked')
         for a, b, kind in reversed(found):
             value = text[a:b]
             key = (kind, value)
@@ -116,6 +123,8 @@ class Guard:
             raise PolicyError('JSON depth exceeded')
         if isinstance(node, str):
             if key == 'name' and tool_name:
+                if any(kind in self.secrets for _, _, kind in self.spans(node)):
+                    raise SensitiveDataError('secret in tool name')
                 return node
             return self.redact(node, writable and key not in self.STRUCTURAL, key not in self.STRUCTURAL)
         if isinstance(node, list):
@@ -142,6 +151,27 @@ class Guard:
             raise PolicyError('unknown request schema')
         changed = self.walk(obj, root=True)
         return body if changed == obj else dumps(changed)
+
+    def check(self):
+        """Exercise the active policy without consuming its mapping or cache."""
+        probe = copy.copy(self)
+        for name in ('aliases', 'reverse', 'known', 'cache'):
+            setattr(probe, name, getattr(self, name).copy())
+        neutral = dumps({'messages': [{'role': 'user', 'content': ''}]})
+        sample = dumps({'messages': [{'role': 'user', 'content': 'canary@example.test'}]})
+        if probe.request(neutral) != neutral:
+            return False
+        try:
+            result = probe.request(sample)
+        except SensitiveDataError:
+            return self.mode == 'block'
+        if self.mode != 'redact' or result == sample:
+            return False
+        masked = loads(result)['messages'][0]['content']
+        if 'canary@example.test' in masked or not self.TOKEN.search(masked):
+            return False
+        restored = probe.response(dumps({'text': masked}), 'application/json')
+        return loads(restored) == {'text': 'canary@example.test'}
 
     def text(self, value):
         def replace(match):
@@ -178,16 +208,17 @@ class Guard:
         if not content_type.startswith('text/event-stream'):
             raise PolicyError('unsupported response format')
         events, channels = [], defaultdict(list)
-        def visit(node, event, path, channel):
+        def visit(node, event, path, channel, arguments_delta=False):
             if isinstance(node, dict):
                 tags = tuple((k, node[k]) for k in ('index', 'item_id', 'output_index', 'content_index', 'type') if isinstance(node.get(k), (str, int)))
                 for k, v in node.items():
-                    visit(v, event, path + (k,), channel + tags)
+                    visit(v, event, path + (k,), channel + tags, arguments_delta)
             elif isinstance(node, list):
                 for i, v in enumerate(node):
-                    visit(v, event, path + (i,), channel)
+                    visit(v, event, path + (i,), channel, arguments_delta)
             elif isinstance(node, str) and 'delta' in path and path[-1] != 'type':
-                channels[(channel, path)].append((event, path, node))
+                restore_key = 'arguments' if arguments_delta and path == ('delta',) else path[-1]
+                channels[(channel, path, restore_key)].append((event, path, node))
         for raw in re.split(r'\r?\n\r?\n', body.decode('utf-8')):
             if not raw:
                 continue
@@ -199,14 +230,18 @@ class Guard:
             idx = len(events)
             events.append((lines, obj))
             if obj is not None:
-                visit(obj, idx, (), ())
+                event_name = next((l[6:].strip() for l in lines if l.startswith('event:')), '')
+                event_type = obj.get('type', event_name) if isinstance(obj, dict) else event_name
+                arguments_delta = event_type == 'response.function_call_arguments.delta'
+                if arguments_delta and not (obj.get('item_id') or type(obj.get('output_index')) is int):
+                    raise PolicyError('argument delta requires a channel identifier')
+                visit(obj, idx, (), (), arguments_delta)
         def set_path(obj, path, value):
             for p in path[:-1]:
                 obj = obj[p]
             obj[path[-1]] = value
-        for refs in channels.values():
+        for (_, _, final_key), refs in channels.items():
             full = ''.join(v for _, _, v in refs)
-            final_key = refs[0][1][-1]
             restored = self.restore(full, final_key) if final_key in ('arguments', 'partial_json') else self.text(full)
             for i, (event, path, _) in enumerate(refs):
                 set_path(events[event][1], path, restored if i == 0 else '')
