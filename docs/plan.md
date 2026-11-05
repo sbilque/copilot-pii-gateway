@@ -172,13 +172,35 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 
 Chaque jalon donne un commit séparé avec ses tests, `make check` et `make lab` au vert, et la mise à jour du handoff et de l'ADR concerné.
 
-## Proposition notée : Presidio réel dans l'environnement de dev
+## Plan : Presidio réel dans l'environnement de dev
 
-Proposée le 2026-11-05, à planifier en détail après les jalons 5 à 7 :
+Proposé le 2026-11-05, détaillé le 2026-11-06 après les jalons 5 à 7. Rien n'est encore implémenté.
 
-- installer Presidio avec de petits modèles anglais et français (`en_core_web_sm`, `fr_core_news_sm`) dans le devcontainer ;
-- ajouter un job CI qui exige l'exécution des tests Presidio réels (échec au lieu d'un test ignoré) ;
-- ajouter au lab une passerelle avec Presidio réel, en plus du détecteur factice de F5.
+État actuel : `make setup-presidio` installe Presidio et un modèle spaCy (`PRESIDIO_MODEL`, défaut `en_core_web_sm`) dans le venv. Un seul test (`RealPresidioTests`) exerce le worker réel, et il est ignoré si Presidio est absent : c'est le cas en CI et dans le devcontainer. Le lab n'utilise qu'un détecteur factice (F5). Le worker charge une seule langue (`presidio_language`, `presidio_model`).
+
+Constats du 2026-11-06 (venv local, presidio-analyzer 2.2.366, spaCy 3.8.18, texte synthétique) :
+
+- En français, le registre par défaut déclare aussi des reconnaisseurs à motifs (EMAIL_ADDRESS, PHONE_NUMBER, IBAN_CODE, IP_ADDRESS, etc.), en plus de la NER (PERSON, LOCATION, ORGANIZATION).
+- Sur `Jean Dupont habite a Lyon, email jean.dupont@example.test, tel +33 6 12 34 56 78.`, `fr_core_news_sm` détecte la personne, la ville et le téléphone, mais classe l'email en LOCATION. Le type retourné n'est donc pas fiable ; les motifs de la politique (`patterns`) restent appliqués par le cœur.
+- Le modèle `fr_core_news_sm` étant absent, Presidio l'a téléchargé automatiquement au démarrage. En réseau fermé, ce téléchargement échoue ; en réseau ouvert, c'est un accès réseau non prévu. P1 doit installer les modèles à l'avance, et le worker doit refuser de démarrer si le modèle manque, au lieu de le télécharger (à tester en P3).
+
+| Étape | Contenu | Dépend de | Critère de fin |
+|---|---|---|---|
+| P1 | Devcontainer : `postCreateCommand` lance `make setup-presidio` avec `en_core_web_sm` et `fr_core_news_sm`. La cible `presidio-model` accepte plusieurs modèles (`PRESIDIO_MODELS`). | - | Dans un devcontainer neuf, `make check` exécute les tests Presidio réels, sans test ignoré. |
+| P2 | Tests réels : mesurer les entités détectées en français (`fr_core_news_sm`) sur des textes synthétiques ; ajouter `RealPresidioTests` pour le français ; documenter les entités effectivement couvertes par langue. | P1 | Tests anglais et français verts ; tableau des entités détectées par langue dans `docs/prototype.md`. |
+| P3 | CI : nouveau job `presidio` (cache pip et modèles) avec `COPILOT_PII_REQUIRE_PRESIDIO=1`. Avec cette variable, l'absence de Presidio ou d'un modèle fait échouer les tests au lieu de les ignorer. Le worker vérifie `spacy.util.is_package(model)` avant de créer le moteur et refuse de démarrer sinon (test : modèle inexistant, aucun téléchargement). Le job `unit` reste sans Presidio, pour garder le chemin sans dépendance. | P2 | Job rouge si Presidio ou un modèle manque (vérifié par mutation : retirer un modèle) ; job vert sinon. |
+| P4 | Lab : image `lab/Dockerfile.presidio` (multi-étapes, modèles inclus à la construction, pas de téléchargement à l'exécution) et service `gateway-presidio-real`. Tests : nom de personne synthétique bloqué en mode block, pseudonymisé puis restauré en mode redact ; canari `ready=true` avec `detector` prêt ; ce que l'amont reçoit est vérifié. | P1 | Tests verts dans `make lab` et en CI ; durée de construction et taille d'image notées. |
+| P5 | Mesures : temps de chargement, latence p50/p95 sur 100 requêtes synthétiques, mémoire du worker, sur le Mac mini (Docker) et en CI. Ajuster `presidio_timeout_ms`, `presidio_max_chars` et la taille de file si nécessaire. | P4 | Valeurs mesurées publiées dans le handoff ; valeurs par défaut justifiées. |
+| P6 | Option : deux langues. Le worker accepte une liste de langues ; la détection de la langue n'est pas automatique (choix explicite dans la politique). À n'engager que si P2 montre un besoin. | P2 | Décision consignée dans un ADR ; pas d'implémentation sans besoin confirmé. |
+
+Risques et précautions :
+
+- Les modèles spaCy sont téléchargés depuis GitHub : épingler les versions (`en_core_web_sm==3.x`, `fr_core_news_sm==3.x`) en accord avec la version de spaCy, et utiliser un miroir approuvé en réseau fermé.
+- La taille augmente (16,3 Mo pour la roue `fr_core_news_sm` 3.8.0, plus spaCy) : garder l'image du lab actuelle sans Presidio et ajouter une image dédiée.
+- Les temps de démarrage du worker réel sont longs : délais de santé du lab à ajuster (`start_period`).
+- Données synthétiques uniquement, comme pour le reste du lab.
+
+Ordre proposé : P1, P2, P3, puis P4 et P5 ; P6 seulement sur décision.
 
 ## Décisions prises (2026-11-05)
 
