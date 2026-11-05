@@ -22,6 +22,7 @@ UPSTREAM_DOWN = 'https://down.business.githubcopilot.com/chat/completions'
 GATEWAY_BLOCK = os.environ.get('LAB_GATEWAY_BLOCK', 'http://gateway-block:8080')
 GATEWAY_REDACT = os.environ.get('LAB_GATEWAY_REDACT', 'http://gateway-redact:8080')
 GATEWAY_FRESH = os.environ.get('LAB_GATEWAY_FRESH', 'http://gateway-fresh:8080')
+GATEWAY_TTL = os.environ.get('LAB_GATEWAY_TTL', 'http://gateway-ttl:8080')
 GATEWAY_NOPROXY = os.environ.get('LAB_GATEWAY_NOPROXY', 'http://gateway-noproxy:8080')
 GATEWAY_PRESIDIO = os.environ.get('LAB_GATEWAY_PRESIDIO', 'http://gateway-presidio:8080')
 GATEWAY_HOT = os.environ.get('LAB_GATEWAY_HOT', 'http://gateway-hot:8080')
@@ -258,6 +259,26 @@ class Mapping(unittest.TestCase):
         self.assertEqual(json.loads(reply)['choices'][0]['message']['content'], 'Bonjour')
 
 
+class Expiry(unittest.TestCase):
+    """J5: gateway-ttl forgets its mapping after 3 s without activity."""
+
+    def test_j5_alias_expires_after_inactivity(self):
+        lab_id, status, _, reply = post(GATEWAY_TTL, chat('Ecris a ' + EMAIL))
+        self.assertEqual(status, 200, reply)
+        alias = TOKEN.search(recorded(lab_id).decode()).group()
+        _, status, _, reply = post(GATEWAY_TTL, chat('Rappel ' + alias))
+        self.assertEqual(status, 200, reply)
+        self.assertEqual(json.loads(reply)['choices'][0]['message']['content'], 'Rappel ' + EMAIL)
+        time.sleep(4.5)
+        _, status, _, reply = post(GATEWAY_TTL, chat('Rappel ' + alias))
+        self.assertEqual(status, 502, reply)
+        self.assertNotIn(b'__PII_', reply)
+        self.assertNotIn(EMAIL.encode(), reply)
+        lab_id, status, _, _ = post(GATEWAY_TTL, chat('Ecris a ' + EMAIL))
+        self.assertEqual(status, 200)
+        self.assertNotIn(alias.encode(), recorded(lab_id), 'expired alias reused')
+
+
 class HotReload(unittest.TestCase):
     """F3: the code of gateway-hot is broken while it runs. gateway.py loads no script, so
     nothing is reloaded and the filter in memory keeps working."""
@@ -297,7 +318,7 @@ class Isolation(unittest.TestCase):
 def load_tests(loader, tests, pattern):
     """HotReload last: it breaks the code of gateway-hot on purpose."""
     suite = unittest.TestSuite()
-    for case in (Isolation, Nominal, Policy, Streaming, Faults, Mapping, HotReload):
+    for case in (Isolation, Nominal, Policy, Streaming, Faults, Mapping, Expiry, HotReload):
         suite.addTests(loader.loadTestsFromTestCase(case))
     return suite
 

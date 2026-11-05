@@ -8,9 +8,9 @@ import hashlib
 import ipaddress
 import json
 import re
-import secrets
 from collections import OrderedDict, defaultdict
 from pii_config import validate_config
+from pii_mapping import CapacityError, MappingStore
 
 
 class PolicyError(ValueError):
@@ -54,8 +54,7 @@ class Guard:
             raise PolicyError('mode must be block or redact')
         self.rules = [(r['entity'], re.compile(r['pattern'])) for r in config.get('patterns', [])]
         self.secrets = set(config.get('block_entities', ['SECRET']))
-        self.aliases, self.reverse, self.known = {}, {}, {}
-        self.prefix = secrets.token_hex(6)
+        self.store = MappingStore(config['max_aliases'], config['mapping_ttl_s'], config.get('mapping_scope', 'process'))
         self.cache = OrderedDict()
         # Optional synchronous detector, for tests or embedded use; text -> [(start, end, type)].
         self.detector = None
@@ -63,6 +62,12 @@ class Guard:
         self.external = bool(config.get('presidio_language'))
         self._prefetched = None
         self._recording = None
+
+    # Views on the mapping store, kept for callers and tests.
+    aliases = property(lambda self: self.store.aliases)
+    reverse = property(lambda self: self.store.reverse)
+    known = property(lambda self: self.store.known)
+    prefix = property(lambda self: self.store.prefix)
 
     def spans(self, text, slow=True):
         found = [(m.start(), m.end(), kind) for kind, rule in self.rules for m in rule.finditer(text) if m.end() > m.start()]
@@ -124,16 +129,11 @@ class Guard:
         if found and (self.mode == 'block' or not writable or any(k in self.secrets for _, _, k in found)):
             raise SensitiveDataError('sensitive data blocked')
         for a, b, kind in reversed(found):
-            value = text[a:b]
-            key = (kind, value)
-            if key not in self.aliases:
-                if len(self.aliases) >= self.config.get('max_aliases', 10000):
-                    raise PolicyError('alias capacity exceeded')
-                token = f'__PII_{self.prefix}_{len(self.aliases) + 1:06d}__'
-                self.aliases[key], self.reverse[token] = token, value
-                if len(value) >= 3:
-                    self.known.setdefault(value, kind)
-            text = text[:a] + self.aliases[key] + text[b:]
+            try:
+                token = self.store.alias(kind, text[a:b])
+            except CapacityError as error:
+                raise PolicyError(str(error)) from None
+            text = text[:a] + token + text[b:]
         return text
 
     def walk(self, node, key='', root=False, tool_name=False, writable=True, depth=0):
@@ -172,6 +172,7 @@ class Guard:
     def request(self, body, prefetched=None):
         """Filter a request body. ``prefetched`` maps key(text) to detector spans."""
         obj = self.parse(body)
+        self.store.expire()
         self._prefetched = prefetched
         try:
             changed = self.walk(obj, root=True)
@@ -182,8 +183,7 @@ class Guard:
     def probe(self):
         """Copy sharing configuration but not mutable mapping or cache state."""
         probe = copy.copy(self)
-        for name in ('aliases', 'reverse', 'known', 'cache'):
-            setattr(probe, name, getattr(self, name).copy())
+        probe.store, probe.cache = self.store.copy(), self.cache.copy()
         return probe
 
     def collect(self, body, ignore_policy=False):
@@ -241,9 +241,10 @@ class Guard:
 
     def text(self, value):
         def replace(match):
-            if match.group() not in self.reverse:
-                raise PolicyError('unknown alias in response')
-            return self.reverse[match.group()]
+            value = self.store.lookup(match.group())
+            if value is None:
+                raise PolicyError('unknown or expired alias in response')
+            return value
         value = self.TOKEN.sub(replace, value)
         if '__PII_' in value:
             raise PolicyError('malformed alias in response')

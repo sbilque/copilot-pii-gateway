@@ -2,6 +2,7 @@
   "mode": "block",
   "max_body_bytes": 4194304,
   "max_response_bytes": 8388608,
+  "mapping_ttl_s": 28800,
   "max_aliases": 10000,
   "max_depth": 64,
   "cache_size": 2000,

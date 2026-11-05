@@ -2,7 +2,7 @@
 
 ## Portee
 
-Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 91 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
+Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 108 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
 
 ## Preparation
 

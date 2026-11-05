@@ -22,12 +22,13 @@ Toute sortie Internet passe par un proxy d'entreprise, sans authentification ou 
 | jalon 2 | Lab : SSE, pannes F1 a F7, canari depuis le reseau client |
 | jalon 3 | Verification des alias en mode redact meme avec un mapping vide |
 | jalon 4 | Lanceur gateway.py sans scripts ni rechargement (ADR-006), F3 corrige |
+| jalon 5 | MappingStore : portee par utilisateur, purge apres 8 h d'inactivite, alias jamais reattribues (ADR-007) |
 
 Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 85 tests reproductibles.
 
-Fichiers : gateway.py (lanceur), pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
+Fichiers : gateway.py (lanceur), pii_mapping.py (mapping), pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
 
-Valide : 91 tests unitaires, dont 22 avec processus worker reels, 6 avec mitmproxy reel (lanceur) et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de la passerelle et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 21 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7, C1, isolation reseau) et la verification de demarrage F4 (politique invalide, scripts), executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
+Valide : 108 tests unitaires, dont 22 avec processus worker reels, 7 avec mitmproxy reel (lanceur) et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de la passerelle et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 22 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7, C1, expiration du mapping, isolation reseau) et la verification de demarrage F4 (politique invalide, scripts), executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
 
 ## Demarrage rapide
 
@@ -48,7 +49,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 - Politique JSON chargee avec rejet des cles dupliquees et constantes non standard, puis validee (ConfigurationError) avant tout detecteur.
 - Modes block (defaut) et redact. Pas de mode audit.
 - Detection : regex de la politique, litteraux, IPv4 RFC1918, Presidio facultatif via worker. Pas de plugins module:fonction.
-- Alias __PII_<12 hex>_<6 chiffres>__, stables pendant la vie du mapping, propagation des valeurs connues (3 caracteres minimum, frontieres de mots), cache LRU par empreinte BLAKE2b.
+- Alias __PII_<12 hex>_<6 chiffres>__, stables pendant la vie du mapping, jamais reattribues (compteur croissant, prefixe par instance), mapping purge apres `mapping_ttl_s` d'inactivite et a l'arret, propagation des valeurs connues (3 caracteres minimum, frontieres de mots), cache LRU par empreinte BLAKE2b.
 - Parcours JSON : schema racine reconnu exige (messages, prompt, input, system, instructions, suffix) ; detection dans un champ structurel ou un nom de cle -> blocage ; `tools` analyse sans reecriture ; noms d'outils preserves sauf categorie bloquee ; blocs signes, thinking, multimedia et gros data: refuses.
 - Addon : hotes Copilot seulement ; HTTPS, JSON, sans query ni upgrade ; 413 sur longueur declaree excessive ; 403 sur refus de politique ; 503 si le detecteur est indisponible ; Accept-Encoding: identity ; octets originaux conserves si rien ne change.
 - Restauration en mode redact, meme avec un mapping vide : JSON recursif et SSE entierement bufferise ; arguments, partial_json et deltas Responses parses avant restauration ; alias inconnu ou malforme -> 502.
@@ -74,7 +75,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 | Canari confondant erreur et blocage attendu | Traite |
 | Detection lente bloquant la boucle | Traite par ADR-005 |
 | Plafond verifie apres buffering, pas de limite memoire globale ni de concurrence | Ouvert |
-| Mapping global mono-utilisateur, sans TTL ni isolation | Ouvert |
+| Mapping global mono-utilisateur, sans TTL ni isolation | Traite (jalon 5, ADR-007) : une passerelle et un port par utilisateur, purge apres inactivite ; acces d'un autre utilisateur local au port ferme au jalon 6 |
 | Alias non verifies avec un mapping vide | Traite (jalon 3) ; le mode block ne verifie pas les reponses |
 | Couverture protocolaire et chemins JSON entre evenements SSE | Partiel, a tester sur captures representatives |
 | Absence du filtre si l'addon echoue au chargement | Traite dans le processus (jalon 4, ADR-006) : gateway.py refuse de demarrer sans politique valide ou avec scripts, et ne recharge rien ; contournement du proxy ouvert (jalon 7) |
@@ -107,13 +108,14 @@ Plan detaille et decisions : [plan.md](plan.md).
 
 | Etape | Etat |
 |---|---|
-| Reconstruire le prototype et rendre les tests reproductibles | Fait (91 tests) |
+| Reconstruire le prototype et rendre les tests reproductibles | Fait (108 tests) |
 | Isoler les detecteurs et borner leur delai | Fait pour Presidio (ADR-005) |
 | Preserver les octets si rien ne change ; bloquer si la protection est impossible | Fait |
 | Auditer restauration JSON imbriquee et SSE | Fait pour les cas testes ; blocs signes refuses |
 | Outillage de developpement reproductible | Fait (Makefile) |
 | Integration avec vrai mitmproxy, serveur amont de test et proxy de test | Fait : N1 a N7, F1 a F7, C1 (lab J1 a J4) |
-| Limiter memoire avant buffering et concurrence ; isolation et duree de vie des mappings | A faire |
+| Limiter memoire avant buffering et concurrence | A faire |
+| Isolation et duree de vie des mappings | Fait (jalon 5) |
 | Decider du streaming SSE incremental | A decider |
 | Verrou reseau et supervision de l'absence du filtre | A faire |
 | Separer core, protocol, transports, upstream, CLI ; profils reseau executables | A faire |

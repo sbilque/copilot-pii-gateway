@@ -83,6 +83,13 @@ services:
     environment:
       LAB_MODE: redact
 
+  # J5 : mapping a duree de vie courte (inactivite 3 s).
+  gateway-ttl:
+    <<: *gateway
+    environment:
+      LAB_MODE: redact
+      LAB_POLICY_PATCH: '{"mapping_ttl_s": 3}'
+
   # F2 : proxy d'entreprise injoignable (nom non resolu), aucune sortie directe possible.
   gateway-noproxy:
     <<: *gateway
@@ -142,6 +149,7 @@ services:
       gateway-block: {condition: service_healthy}
       gateway-redact: {condition: service_healthy}
       gateway-fresh: {condition: service_healthy}
+      gateway-ttl: {condition: service_healthy}
       gateway-noproxy: {condition: service_healthy}
       gateway-presidio: {condition: service_healthy}
       gateway-hot: {condition: service_healthy}

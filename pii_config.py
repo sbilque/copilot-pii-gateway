@@ -54,6 +54,13 @@ def validate_config(config):
             re.compile(rule['pattern'])
         except re.error:
             raise ConfigurationError('patterns contains an invalid regular expression') from None
+    ttl = config.get('mapping_ttl_s', 28800)
+    if type(ttl) is not int or not 1 <= ttl <= 604800:
+        raise ConfigurationError('mapping_ttl_s must be an integer between 1 and 604800')
+    config['mapping_ttl_s'] = ttl
+    scope = config.get('mapping_scope', 'process')
+    if not isinstance(scope, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,64}', scope):
+        raise ConfigurationError('mapping_scope must be a short label')
     language = config.get('presidio_language')
     if language is not None and (not isinstance(language, str) or not language.strip()):
         raise ConfigurationError('presidio_language must be null or a non-empty string')

@@ -13,7 +13,11 @@ class CopilotPII:
         self.guard, self.worker = None, None
 
     def load(self, loader):
-        guard = Guard(loads(Path(os.environ.get('COPILOT_PII_CONFIG', 'policy.json')).read_bytes()))
+        config = loads(Path(os.environ.get('COPILOT_PII_CONFIG', 'policy.json')).read_bytes())
+        if isinstance(config, dict) and hasattr(os, 'getuid'):
+            # One gateway per operating system user: the mapping scope is that user.
+            config.setdefault('mapping_scope', f'uid-{os.getuid()}')
+        guard = Guard(config)
         worker = PresidioWorker(guard.config) if guard.external else None
         if self.worker:
             self.worker.stop()
@@ -22,6 +26,8 @@ class CopilotPII:
             worker.start()
 
     def done(self):
+        if self.guard:
+            self.guard.store.purge()  # values never outlive the process
         if self.worker:
             self.worker.stop()
 
@@ -82,7 +88,7 @@ class CopilotPII:
                     ok = guard is self.guard and guard.check(prefetched)
                 flow.metadata['pii_blocked'] = True
                 flow.response = http.Response.make(200 if ok else 503, json.dumps(
-                    {'ready': ok, 'mode': guard.mode, 'detector': state}).encode(), {'content-type': 'application/json'})
+                    {'ready': ok, 'mode': guard.mode, 'detector': state, 'mapping': guard.store.stats()}).encode(), {'content-type': 'application/json'})
             except Exception:
                 self.error(flow, 503)
             return
@@ -119,6 +125,7 @@ class CopilotPII:
         # Always checked, even with an empty mapping: an alias unknown to this instance
         # (restart, lost mapping, another instance) must never reach the client raw.
         try:
+            self.guard.store.expire()
             body, content_type = flow.response.content, flow.response.headers.get('content-type', '')
             if not self.guard.reverse and not self.guard.may_hold_alias(body, content_type):
                 return  # nothing to restore and no alias marker: bytes unchanged

@@ -118,6 +118,26 @@ class AddonTests(unittest.TestCase):
         self.assertEqual(f.response.status_code, 200)
         self.assertTrue(json.loads(f.response.content)['ready'])
 
+    def test_selftest_reports_mapping_counts_only(self):
+        run(self.addon.request(flow(request('a@example.test'))))
+        f = flow(host='pii-gate.invalid', scheme='http', method='GET')
+        run(self.addon.request(f))
+        mapping = json.loads(f.response.content)['mapping']
+        self.assertEqual(mapping['aliases'], 1)
+        self.assertNotIn(b'a@example.test', f.response.content)
+
+    def test_done_purges_mapping(self):
+        run(self.addon.request(flow(request('a@example.test'))))
+        self.assertTrue(self.addon.guard.reverse)
+        self.addon.done()
+        self.assertFalse(self.addon.guard.reverse)
+
+    def test_load_scopes_mapping_to_user(self):
+        with patch.dict('os.environ', {'COPILOT_PII_CONFIG': str(Path(__file__).with_name('policy.json'))}):
+            self.addon.load(None)
+        if hasattr(addon.os, 'getuid'):
+            self.assertEqual(self.addon.guard.store.scope, f'uid-{addon.os.getuid()}')
+
     def test_browser_selftest_rejected(self):
         f = flow(host='pii-gate.invalid'); f.request.headers['origin'] = 'https://example.test'
         run(self.addon.request(f))

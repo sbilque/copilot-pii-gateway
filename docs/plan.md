@@ -1,6 +1,6 @@
 # Plan : lab d'intégration, filtre absent, isolation des alias
 
-État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 4 réalisés : voir [le lab](../lab/README.md).
+État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 5 réalisés : voir [le lab](../lab/README.md).
 
 ## Constats vérifiés avant de planifier
 
@@ -164,12 +164,20 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 | J2 | A5 complet, avec F3 marqué « échec attendu » | J1 | M, **fait** |
 | J3 | C1 : vérification systématique des alias | J1 | S, **fait** |
 | J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S, **fait** |
-| J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M |
+| J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M, **fait** |
 | J6 | C4 et B4 : authentification du proxy local et supervision | J5 | M |
 | J7 | B3 : verrou réseau documenté et vérifié sur un système | J4 | M |
 | J8 | NTLM/Kerberos : méthode manuelle documentée, sans test automatisé | — | S, **fait** |
 
 Chaque jalon donne un commit séparé avec ses tests, `make check` et `make lab` au vert, et la mise à jour du handoff et de l'ADR concerné.
+
+## Proposition notée : Presidio réel dans l'environnement de dev
+
+Proposée le 2026-11-05, à planifier en détail après les jalons 5 à 7 :
+
+- installer Presidio avec de petits modèles anglais et français (`en_core_web_sm`, `fr_core_news_sm`) dans le devcontainer ;
+- ajouter un job CI qui exige l'exécution des tests Presidio réels (échec au lieu d'un test ignoré) ;
+- ajouter au lab une passerelle avec Presidio réel, en plus du détecteur factice de F5.
 
 ## Décisions prises (2026-11-05)
 

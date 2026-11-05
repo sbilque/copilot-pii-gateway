@@ -14,7 +14,7 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-CODE = ('gateway.py', 'copilot_pii.py', 'pii_core.py', 'pii_config.py', 'pii_detector.py', 'pii_worker.py')
+CODE = ('gateway.py', 'copilot_pii.py', 'pii_core.py', 'pii_config.py', 'pii_detector.py', 'pii_worker.py', 'pii_mapping.py')
 
 
 def free_port():
@@ -60,8 +60,8 @@ class GatewayTests(unittest.TestCase):
         except (urllib.error.URLError, ConnectionError, OSError):
             return None
 
-    def running(self):
-        proc = self.start()
+    def running(self, *args):
+        proc = self.start(*args)
         self.addCleanup(lambda: (proc.terminate(), proc.communicate(timeout=10)))
         deadline = time.monotonic() + 30
         while (status := self.health()) is None:
@@ -95,6 +95,14 @@ class GatewayTests(unittest.TestCase):
                               capture_output=True, text=True, timeout=30)
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn('scripts is not allowed', proc.stderr)
+
+    def test_listen_port_option_overrides_config(self):
+        # make run passes --listen-port: --set would be overridden by config.yaml.
+        configured, self.port = self.port, free_port()
+        status = self.running('--listen-port', str(self.port))
+        self.assertTrue(status['ready'])
+        self.assertEqual(status['mapping']['aliases'], 0)
+        self.assertNotEqual(configured, self.port)
 
     def test_ready_and_no_hot_reload(self):
         self.assertTrue(self.running()['ready'])

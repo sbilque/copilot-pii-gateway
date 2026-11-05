@@ -6,10 +6,11 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 
 - `pii_config.py` : validation explicite de la politique avant initialisation.
 - `pii_core.py` : detection, alias, propagation, cache, parcours JSON et restauration.
+- `pii_mapping.py` : mapping des alias en memoire, par utilisateur, purge apres inactivite (ADR-007).
 - `gateway.py` : lanceur, addon integre sans chargement ni rechargement de scripts (ADR-006).
 - `copilot_pii.py` : adaptateur mitmproxy (hooks async).
 - `pii_detector.py`, `pii_worker.py` : Presidio dans un processus separe, avec delai borne, relance et refus en cas d'echec.
-- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py`, `test_gateway.py` : 91 tests, dont hooks mitmproxy simules, processus worker reels pilotes par `fake_worker.py` et lanceur avec mitmproxy reel.
+- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py`, `test_gateway.py`, `test_mapping.py` : 108 tests, dont hooks mitmproxy simules, processus worker reels pilotes par `fake_worker.py` et lanceur avec mitmproxy reel.
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
 - `check_config.py` : validation de config.yaml par le gestionnaire d'options mitmproxy.
