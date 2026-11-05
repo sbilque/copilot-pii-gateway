@@ -1,0 +1,18 @@
+#!/usr/sbin/nft -f
+# Verrou reseau Linux (nftables, ADR-009) : seul l'utilisateur systeme de la passerelle
+# peut joindre le proxy d'entreprise. VS Code et les autres processus doivent passer par
+# la passerelle locale (127.0.0.1). Adapter les trois valeurs ci-dessous.
+# Verifie dans le lab (make lab-lock, CI GitHub Actions).
+define PROXY = 10.0.0.10
+define PROXY_PORT = 3128
+define GATEWAY_UID = 10002
+
+table inet copilot_pii_lock
+delete table inet copilot_pii_lock
+
+table inet copilot_pii_lock {
+    chain output {
+        type filter hook output priority filter; policy accept;
+        ip daddr $PROXY tcp dport $PROXY_PORT meta skuid != $GATEWAY_UID counter reject with tcp reset
+    }
+}

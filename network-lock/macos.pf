@@ -1,0 +1,8 @@
+# Verrou reseau macOS (pf, ADR-009) : seul l'utilisateur de la passerelle joint le proxy
+# d'entreprise. A placer dans /etc/pf.anchors/copilot-pii. NON VERIFIE dans ce depot.
+# Adapter les valeurs ; _copilotgw est l'utilisateur dedie qui lance gateway.py.
+proxy = "10.0.0.10"
+proxy_port = "3128"
+
+pass out quick proto tcp from any to $proxy port $proxy_port user _copilotgw
+block return out quick proto tcp from any to $proxy port $proxy_port

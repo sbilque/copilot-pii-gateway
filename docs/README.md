@@ -11,6 +11,7 @@
 - [ADR-006](adr/006-launcher-without-scripts.md) : lanceur gateway.py sans chargement ni rechargement de scripts.
 - [ADR-007](adr/007-mapping-scope-and-lifetime.md) : mapping des alias par utilisateur, duree de vie par inactivite.
 - [ADR-008](adr/008-local-auth-and-supervision.md) : mot de passe optionnel du proxy local et canari periodique.
+- [ADR-009](adr/009-network-lock.md) : verrou reseau contre le contournement de la passerelle.
 - [Guide reseau](network/proxy-enterprise.md) : exemples et validation.
 
 La numerotation conserve ADR-004, nom utilise pendant la conception. Aucun ADR-003 n'est publie pour l'instant. Les ADR decrivent des decisions ; leur section Etat d'implementation indique ce qui est effectivement code et teste.

@@ -144,6 +144,22 @@ services:
         check 'LAB_POLICY_PATCH={"exact_hosts": "x"}'
         check LAB_ADD_SCRIPTS=1
 
+  # J7 : verrou reseau network-lock/linux.nft dans l'espace reseau propre du conteneur.
+  lock:
+    <<: *app
+    profiles: [lock]
+    user: "0"
+    cap_add: [NET_ADMIN]
+    networks: [egress]
+    environment:
+      LAB_LOCK_OPTIONAL: ${LAB_LOCK_OPTIONAL:-}
+    volumes:
+      - pki:/pki:ro
+    command: ["python", "/app/lab/test_lock.py"]
+    depends_on:
+      pki: {condition: service_completed_successfully}
+      corp-proxy: {condition: service_healthy}
+
   tests:
     <<: *app
     profiles: [test]

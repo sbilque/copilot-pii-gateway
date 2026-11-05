@@ -6,9 +6,10 @@
 #   LAB_HOT_DIR       copie le code dans ce dossier et le lance depuis la (test F3)
 #   LAB_ADD_SCRIPTS   1 : ajoute scripts a la configuration (doit etre refuse, test F4)
 #   LAB_PROXY_AUTH    user:password du proxy local, ecrit dans COPILOT_PII_PROXY_AUTH (J6)
+#   LAB_PKI           dossier de la CA mitmproxy (defaut /pki)
 set -eu
 conf=$(mktemp -d)
-cp /pki/mitmproxy-ca.pem "$conf/"
+cp "${LAB_PKI:-/pki}/mitmproxy-ca.pem" "$conf/"
 code=/app
 if [ -n "${LAB_HOT_DIR:-}" ]; then
     cp /app/*.py "$LAB_HOT_DIR/"

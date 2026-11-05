@@ -1,6 +1,6 @@
 # Plan : lab d'intégration, filtre absent, isolation des alias
 
-État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 6 réalisés : voir [le lab](../lab/README.md).
+État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 7 réalisés : voir [le lab](../lab/README.md).
 
 ## Constats vérifiés avant de planifier
 
@@ -167,7 +167,7 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 | J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S, **fait** |
 | J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M, **fait** |
 | J6 | C4 et B4 : authentification du proxy local et supervision | J5 | M, **fait** (VS Code non vérifié) |
-| J7 | B3 : verrou réseau documenté et vérifié sur un système | J4 | M |
+| J7 | B3 : verrou réseau documenté et vérifié sur un système | J4 | M, **fait** (Linux nftables vérifié en CI ; macOS, Windows non vérifiés) |
 | J8 | NTLM/Kerberos : méthode manuelle documentée, sans test automatisé | — | S, **fait** |
 
 Chaque jalon donne un commit séparé avec ses tests, `make check` et `make lab` au vert, et la mise à jour du handoff et de l'ADR concerné.

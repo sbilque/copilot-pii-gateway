@@ -24,12 +24,13 @@ Toute sortie Internet passe par un proxy d'entreprise, sans authentification ou 
 | jalon 4 | Lanceur gateway.py sans scripts ni rechargement (ADR-006), F3 corrige |
 | jalon 5 | MappingStore : portee par utilisateur, purge apres 8 h d'inactivite, alias jamais reattribues (ADR-007) |
 | jalon 6 | Mot de passe optionnel du proxy local, canari periodique watch_proxy.py, exemples launchd/systemd (ADR-008) |
+| jalon 7 | Verrou reseau network-lock/ (nftables verifie dans le lab, pf et Windows non verifies) (ADR-009) |
 
 Le code est une reconstruction des principes de V3, pas une importation de l'archive V3, qui n'est pas dans le depot. Les 51 tests historiques ne sont pas reproductibles ; ils sont remplaces par 85 tests reproductibles.
 
-Fichiers : gateway.py (lanceur), pii_mapping.py (mapping), pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), watch_proxy.py et supervision/ (canari periodique), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
+Fichiers : gateway.py (lanceur), pii_mapping.py (mapping), pii_config.py (validation), pii_core.py (detection, alias, parcours, restauration), pii_detector.py et pii_worker.py (Presidio hors processus), copilot_pii.py (addon), check_config.py et check_proxy.py (verifications), watch_proxy.py et supervision/ (canari periodique), network-lock/ (verrou reseau), test_*.py et fake_worker.py (tests), policy.json, config.yaml, px.ini.example, requirements*.txt, Makefile.
 
-Valide : 120 tests unitaires, dont 22 avec processus worker reels, 19 avec mitmproxy reel (lanceur, mot de passe local, superviseur) et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de la passerelle et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 24 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7, C1, expiration du mapping, mot de passe local, isolation reseau) et la verification de demarrage F4 (politique invalide, scripts), executes aussi dans la CI. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
+Valide : 120 tests unitaires, dont 22 avec processus worker reels, 19 avec mitmproxy reel (lanceur, mot de passe local, superviseur) et 1 avec Presidio reel (en_core_web_sm) ; `make setup` depuis un venv vide (Python 3.14, mitmproxy 12.3.1) ; demarrage de la passerelle et canari ready ; demarrage de Px 0.13 sur 127.0.0.1:3128. Lab d'integration : 24 tests avec mitmproxy reel, Squid et faux serveur Copilot en HTTPS verifie (N1 a N7, F1 a F7, C1, expiration du mapping, mot de passe local, isolation reseau), la verification de demarrage F4 (politique invalide, scripts) et 6 tests du verrou nftables (lab/test_lock.py), executes dans la CI ; le verrou est ignore dans les bacs a sable sans nf_tables. Non valide : trafic Copilot reel, proxy d'entreprise reel, NTLM/Kerberos (methode manuelle documentee, non bloquante), modeles francais, charge.
 
 ## Demarrage rapide
 
@@ -79,7 +80,7 @@ Etapes manuelles : proxy amont dans config.yaml, installation de la CA publique 
 | Mapping global mono-utilisateur, sans TTL ni isolation | Traite (jalon 5, ADR-007) : une passerelle et un port par utilisateur, purge apres inactivite ; acces d'un autre utilisateur local ferme par le mot de passe optionnel (jalon 6) |
 | Alias non verifies avec un mapping vide | Traite (jalon 3) ; le mode block ne verifie pas les reponses |
 | Couverture protocolaire et chemins JSON entre evenements SSE | Partiel, a tester sur captures representatives |
-| Absence du filtre si l'addon echoue au chargement | Traite dans le processus (jalon 4, ADR-006) : gateway.py refuse de demarrer sans politique valide ou avec scripts, et ne recharge rien ; contournement du proxy ouvert (jalon 7) |
+| Absence du filtre si l'addon echoue au chargement | Traite dans le processus (jalon 4, ADR-006) : gateway.py refuse de demarrer sans politique valide ou avec scripts, et ne recharge rien ; contournement du proxy traite par le verrou reseau (jalon 7, ADR-009), verifie sous Linux seulement |
 | Health ne prouve pas le routage de la fenetre VS Code | Ouvert |
 | Reprise apres redemarrage, historique fournisseur opaque | Non garanti |
 | En-tetes, telemetrie, agents cloud, contexte serveur, MCP direct | Non couverts |

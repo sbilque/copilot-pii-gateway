@@ -102,6 +102,6 @@ Verifier un prompt neutre, un canari email, le corps sortant, les reponses JSON/
 1. Mesurer le worker Presidio sur le poste cible (chargement, latence p50/p95, memoire) et ajuster ses valeurs par defaut ; tester les modeles francais.
 2. Borner la memoire avant buffering et la concurrence.
 3. Decider explicitement si le streaming incremental SSE doit etre reintroduit, avec adaptateurs par protocole et tests des evenements terminaux et canaux paralleles.
-4. Decrire et verifier un verrou reseau contre le contournement du proxy (jalon 7).
+4. Verifier les exemples de verrou reseau macOS (pf) et Windows sur des postes reels ; seul Linux (nftables) est verifie (ADR-009).
 
 Le handoff decrit l'etat actuel du depot ; chaque ADR indique son etat d'implementation. Le transport natif est differe et a evaluer, non abandonne. Les profils direct_proxy et integrated_proxy restent des configurations manuelles, pas un schema applicatif executable.

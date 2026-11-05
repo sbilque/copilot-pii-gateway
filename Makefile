@@ -38,7 +38,7 @@ STAMP_PX       := $(VENV)/.installed-px
 SOURCES := pii_config.py pii_core.py pii_mapping.py pii_detector.py pii_worker.py copilot_pii.py gateway.py watch_proxy.py \
            check_proxy.py check_config.py fake_worker.py \
            test_core.py test_addon.py test_regressions.py test_worker.py test_gateway.py test_mapping.py \
-           lab/fake_copilot.py lab/pki.py lab/test_lab.py
+           lab/fake_copilot.py lab/pki.py lab/test_lab.py lab/test_lock.py
 
 .PHONY: help setup setup-presidio check-python venv install install-presidio \
         install-px presidio-model test compile policy-check config-check check ca ca-path \
@@ -171,9 +171,10 @@ doctor: ## Etat de l'environnement et etapes manuelles
 lab-up: ## Demarrer le lab (etat propre) : PKI, faux Copilot, Squid, passerelles
 	$(LAB) up -d $(LAB_BUILD) --force-recreate --wait
 
-lab-test: lab-up ## Lancer les tests d'integration et la verification de demarrage (F4)
+lab-test: lab-up ## Lancer les tests d'integration, la verification de demarrage (F4) et le verrou reseau (J7)
 	$(LAB) run --rm tests
 	$(LAB) --profile faults run --rm startup-check
+	$(LAB) --profile lock run --rm lock
 
 lab-logs: ## Suivre les journaux du lab
 	$(LAB) logs -f
@@ -188,7 +189,7 @@ lab-collect: ## Copier journaux et enregistrements amont dans lab/out (diagnosti
 	-$(LAB) exec -T corp-proxy cat /var/log/squid/access.log > lab/out/squid-access.log
 
 lab-down: ## Arreter le lab et supprimer ses volumes
-	$(LAB) --profile test --profile faults down -v --remove-orphans
+	$(LAB) --profile test --profile faults --profile lock down -v --remove-orphans
 
 lab: ## Cycle complet : demarrage, tests, arret garanti
 	@status=0; $(MAKE) --no-print-directory lab-test || status=$$?; \

@@ -15,7 +15,7 @@ Images multi-architecture : arm64 sur le Mac, amd64 dans la CI.
 |---|---|
 | `make lab` | Cycle complet : demarrage, tests, collecte en cas d'echec, arret |
 | `make lab-up` | Construit les images et recree tous les conteneurs (etat propre) |
-| `make lab-test` | Reconstruit si le code a change, lance les tests puis la verification de demarrage (F4) |
+| `make lab-test` | Reconstruit si le code a change, lance les tests, la verification de demarrage (F4) puis le verrou reseau (J7) |
 | `make lab-logs` | Suit les journaux |
 | `make lab-shell` | Shell dans la passerelle redact |
 | `make lab-collect` | Copie journaux, enregistrements amont et journal Squid dans `lab/out/` |
@@ -70,6 +70,7 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 | C1 | Mapping vide : alias d'une autre instance ou alias inconnu -> 502 sans alias renvoye ; reponse neutre transmise |
 | J5 | Alias expire apres inactivite : 502 sans valeur ni alias renvoye ; le meme alias n'est jamais reemis |
 | J6 | Client sans identifiants ou avec de mauvais identifiants : 407 avant analyse ; avec le secret, filtrage normal |
+| J7 | Verrou `network-lock/linux.nft` (nftables reel, service `lock`) : client et root refuses vers Squid, utilisateur de la passerelle accepte, requete via la passerelle 200 |
 | I1, I2 | Squid et l'amont injoignables depuis le reseau client |
 
 Les tests lisent ce que l'amont a reellement recu. Controles par mutation : une passerelle sans addon (`mitmdump` seul) fait echouer N2, et `gateway-hot` lancee avec `mitmdump` et `scripts` fait echouer F3.
@@ -79,4 +80,5 @@ Les tests lisent ce que l'amont a reellement recu. Controles par mutation : une 
 - Pas d'authentification sur Squid, pas de NTLM/Kerberos : voir la methode manuelle du [guide reseau](../docs/network/proxy-enterprise.md).
 - F5 utilise un detecteur factice : Presidio reel n'est pas installe dans l'image du lab.
 - Squid echoue en 5 s sur un nom introuvable (`dns_timeout`, reglage du lab).
-- Les reseaux `internal` reposent sur les regles de Docker ; ils ne remplacent pas un verrou reseau sur le poste.
+- Les reseaux `internal` reposent sur les regles de Docker ; le verrou du poste est verifie a part (J7).
+- Le service `lock` exige nftables dans le noyau. Dans un bac a sable sans nf_tables, `LAB_LOCK_OPTIONAL=1` le fait ignorer ; la CI l'execute toujours.

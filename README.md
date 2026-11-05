@@ -14,6 +14,7 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
 - `watch_proxy.py` : canari periodique, arret de la passerelle apres echecs (ADR-008) ; exemples launchd et systemd dans `supervision/`.
+- `network-lock/` : exemples de verrou reseau (nftables, pf, pare-feu Windows) et procedure de verification (ADR-009).
 - `check_config.py` : validation de config.yaml par le gestionnaire d'options mitmproxy.
 - `Makefile` : preparation et verification de l'environnement de developpement.
 
@@ -40,7 +41,7 @@ Les secrets detectes dans les corps analyses sont bloques, y compris dans les no
 
 Le client officiel conserve la gestion de l'authentification Copilot ; l'addon ne gere pas les jetons. L'interception HTTPS n'implique pas que les credentials soient invisibles au processus proxy. Les profils reseau restent des configurations manuelles, et le transport natif reste une piste a evaluer, pas une fonction publiee.
 
-Le canari verifie un corps neutre, la protection d'un email synthetique et, en mode redact, sa restauration JSON. Il ne confond plus une erreur generique avec un blocage attendu. Il ne garantit pas le routage de Copilot. Le lanceur `gateway.py` empeche qu'un addon casse ou recharge laisse le proxy ouvert ; il n'empeche pas un contournement du proxy (verrou reseau a prevoir). Le mot de passe optionnel du proxy local (`make proxy-secret`) ferme l'acces des autres utilisateurs locaux.
+Le canari verifie un corps neutre, la protection d'un email synthetique et, en mode redact, sa restauration JSON. Il ne confond plus une erreur generique avec un blocage attendu. Il ne garantit pas le routage de Copilot. Le lanceur `gateway.py` empeche qu'un addon casse ou recharge laisse le proxy ouvert ; le verrou reseau de `network-lock/` empeche VS Code de joindre directement le proxy d'entreprise (ADR-009 ; verifie sous Linux avec nftables dans le lab, non verifie sous macOS et Windows). Le mot de passe optionnel du proxy local (`make proxy-secret`) ferme l'acces des autres utilisateurs locaux.
 
 ## Documentation
 
