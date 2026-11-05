@@ -1,3 +1,4 @@
+import asyncio
 import importlib.util
 import json
 import sys
@@ -6,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from test_core import guard, request
+import pii_detector  # noqa: F401  imported before the patch so sys.modules keeps one copy
 
 
 class Response:
@@ -22,6 +24,10 @@ with patch.dict(sys.modules, {'mitmproxy': fake}):
     spec.loader.exec_module(addon)
 
 
+def run(coroutine):
+    return asyncio.run(coroutine)
+
+
 def flow(body=b'', host='api.enterprise.githubcopilot.com', scheme='https', method='POST'):
     req = types.SimpleNamespace(host=host, scheme=scheme, method=method, query={},
         headers={'content-type': 'application/json'}, raw_content=body, content=body, stream=False)
@@ -36,19 +42,19 @@ class AddonTests(unittest.TestCase):
 
     def test_request_redacted(self):
         f = flow(request('a@example.test'))
-        self.addon.request(f)
+        run(self.addon.request(f))
         self.assertIsNone(f.response)
         self.assertNotIn(b'a@example.test', f.request.content)
 
     def test_routes_blocked(self):
         for host, scheme in [('api.individual.githubcopilot.com', 'https'), ('api.enterprise.githubcopilot.com', 'http')]:
             f = flow(request('hello'), host, scheme)
-            self.addon.request(f)
+            run(self.addon.request(f))
             self.assertEqual(f.response.status_code, 403)
 
     def test_bad_body_blocked(self):
         f = flow(b'not json')
-        self.addon.request(f)
+        run(self.addon.request(f))
         self.assertEqual(f.response.status_code, 403)
 
     def test_declared_size(self):
@@ -58,7 +64,7 @@ class AddonTests(unittest.TestCase):
 
     def test_response_roundtrip(self):
         f = flow(request('a@example.test'))
-        self.addon.request(f)
+        run(self.addon.request(f))
         token = next(iter(self.addon.guard.reverse))
         f.response = Response.make(200, json.dumps({'text': token}).encode(), {'content-type': 'application/json'})
         self.addon.responseheaders(f); self.addon.response(f)
@@ -73,13 +79,13 @@ class AddonTests(unittest.TestCase):
 
     def test_selftest(self):
         f = flow(host='pii-gate.invalid', scheme='http', method='GET')
-        self.addon.request(f)
+        run(self.addon.request(f))
         self.assertEqual(f.response.status_code, 200)
         self.assertTrue(json.loads(f.response.content)['ready'])
 
     def test_browser_selftest_rejected(self):
         f = flow(host='pii-gate.invalid'); f.request.headers['origin'] = 'https://example.test'
-        self.addon.request(f)
+        run(self.addon.request(f))
         self.assertEqual(f.response.status_code, 403)
 
 

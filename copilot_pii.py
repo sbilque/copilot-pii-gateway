@@ -5,11 +5,41 @@ import os
 from pathlib import Path
 from mitmproxy import http
 from pii_core import Guard, loads
+from pii_detector import DetectorUnavailable, PresidioWorker
 
 
 class CopilotPII:
+    def __init__(self):
+        self.guard, self.worker = None, None
+
     def load(self, loader):
-        self.guard = Guard(loads(Path(os.environ.get('COPILOT_PII_CONFIG', 'policy.json')).read_bytes()))
+        guard = Guard(loads(Path(os.environ.get('COPILOT_PII_CONFIG', 'policy.json')).read_bytes()))
+        worker = PresidioWorker(guard.config) if guard.external else None
+        if self.worker:
+            self.worker.stop()
+        self.guard, self.worker = guard, worker
+        if worker:
+            worker.start()
+
+    def done(self):
+        if self.worker:
+            self.worker.stop()
+
+    async def prefetch(self, guard, body, ignore_policy=False):
+        """Run slow detection out of process; None when the guard has no external detector."""
+        if not guard.external:
+            return None
+        texts, results = guard.collect(body, ignore_policy)
+        if texts:
+            if self.worker is None:
+                raise DetectorUnavailable('detector missing')
+            results.update(await self.worker.analyze_many(texts))
+        return results
+
+    def detector_state(self, guard):
+        if not guard.external:
+            return 'disabled'
+        return self.worker.status() if self.worker else 'missing'
 
     def target(self, host):
         host = host.lower().rstrip('.')
@@ -34,31 +64,46 @@ class CopilotPII:
             except ValueError:
                 self.error(flow, 400)
 
-    def request(self, flow):
+    async def request(self, flow):
         if flow.request.host == 'pii-gate.invalid':
             try:
                 peer = flow.client_conn.peername[0]
                 if not ipaddress.ip_address(peer).is_loopback or flow.request.headers.get('origin'):
                     return self.error(flow, 403)
-                ok = self.guard.check()
+                guard = self.guard
+                state = self.detector_state(guard)
+                ok = state in ('disabled', 'ready')
+                if ok:
+                    prefetched = None
+                    if guard.external:
+                        prefetched = {}
+                        for body in guard.CHECK_BODIES:
+                            prefetched.update(await self.prefetch(guard, body, ignore_policy=True))
+                    ok = guard is self.guard and guard.check(prefetched)
                 flow.metadata['pii_blocked'] = True
-                flow.response = http.Response.make(200 if ok else 503, json.dumps({'ready': ok, 'mode': self.guard.mode}).encode(),
-                                                  {'content-type': 'application/json'})
+                flow.response = http.Response.make(200 if ok else 503, json.dumps(
+                    {'ready': ok, 'mode': guard.mode, 'detector': state}).encode(), {'content-type': 'application/json'})
             except Exception:
                 self.error(flow, 503)
             return
         if not self.target(flow.request.host) or flow.response is not None:
             return
         try:
-            r = flow.request
+            r, guard = flow.request, self.guard
             if not self.allowed(r.host) or r.scheme != 'https' or r.query or r.headers.get('upgrade'):
                 raise ValueError('unsupported route')
             if r.method in ('GET', 'HEAD', 'OPTIONS') and not r.raw_content:
                 return
             if r.headers.get('content-type', '').split(';')[0].strip() != 'application/json':
                 raise ValueError('unsupported body')
-            r.content = self.guard.request(r.content)
+            body = r.content
+            prefetched = await self.prefetch(guard, body)
+            if guard is not self.guard:
+                raise DetectorUnavailable('policy reloaded during analysis')
+            r.content = guard.request(body, prefetched)
             r.headers['accept-encoding'] = 'identity'
+        except DetectorUnavailable:
+            self.error(flow, 503)
         except Exception:
             self.error(flow, 403)
 

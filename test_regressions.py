@@ -8,7 +8,7 @@ from unittest.mock import patch
 from pii_config import ConfigurationError, validate_config
 from pii_core import Guard, PolicyError, SensitiveDataError, dumps, loads
 from test_core import guard, request
-from test_addon import addon, flow
+from test_addon import addon, flow, run
 
 
 class ConfigurationTests(unittest.TestCase):
@@ -183,7 +183,7 @@ class ReadinessRegressions(unittest.TestCase):
         instance = addon.CopilotPII()
         instance.guard = g
         f = flow(host='pii-gate.invalid', scheme='http', method='GET')
-        instance.request(f)
+        run(instance.request(f))
         return f.response
 
     def test_success_in_both_modes(self):
@@ -227,7 +227,7 @@ class ReadinessRegressions(unittest.TestCase):
         instance.guard = guard()
         f = flow(host='pii-gate.invalid')
         f.client_conn.peername = ('192.0.2.1', 1)
-        instance.request(f)
+        run(instance.request(f))
         self.assertEqual(f.response.status_code, 403)
 
     def test_load_rejects_duplicate_policy_keys(self):

@@ -6,8 +6,9 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 
 - `pii_config.py` : validation explicite de la politique avant initialisation.
 - `pii_core.py` : detection, alias, propagation, cache, parcours JSON et restauration.
-- `copilot_pii.py` : adaptateur mitmproxy.
-- `test_core.py`, `test_addon.py`, `test_regressions.py` : 58 tests unitaires, dont hooks mitmproxy simules.
+- `copilot_pii.py` : adaptateur mitmproxy (hooks async).
+- `pii_detector.py`, `pii_worker.py` : Presidio dans un processus separe, avec delai borne, relance et refus en cas d'echec.
+- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py` : 80 tests, dont hooks mitmproxy simules et processus worker reels pilotes par `fake_worker.py`.
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
 
@@ -15,13 +16,13 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 python -m unittest -v
 ```
 
-Les tests utilisent la bibliotheque standard ; mitmproxy et Presidio ne sont pas requis pour les tests simules.
+Les tests utilisent la bibliotheque standard ; mitmproxy et Presidio ne sont pas requis. Un test supplementaire avec Presidio reel s'execute si `presidio_analyzer` et `en_core_web_sm` sont installes, sinon il est ignore.
 
 Installation et limites : [guide du prototype](docs/prototype.md).
 
 ## Statut et securite
 
-Non valide contre Copilot reel, mitmproxy reel, Presidio ou un proxy NTLM/Kerberos. Le reverse proxy natif, wrap/unwrap et le schema reseau V4 ne sont pas implementes.
+Non valide contre Copilot reel ou un proxy NTLM/Kerberos. Le worker Presidio a ete exerce avec Presidio reel (modele anglais) et un demarrage de mitmdump avec point de sante, sans trafic Copilot. Le reverse proxy natif, wrap/unwrap et le schema reseau V4 ne sont pas implementes.
 
 Difference importante avec le prototype historique : cette reconstruction bufferise integralement les reponses SSE avant restauration. Ce n'est pas un streaming interactif. Les plafonds de taille ne constituent pas une limite memoire avant reception.
 
@@ -38,6 +39,7 @@ Le canari verifie un corps neutre, la protection d'un email synthetique et, en m
 - [ADR architecture](docs/adr/001-architecture-and-transports.md)
 - [ADR protection PII](docs/adr/002-fail-closed-pii-policy.md)
 - [ADR proxy d'entreprise](docs/adr/004-enterprise-proxy-authentication.md)
+- [ADR worker Presidio](docs/adr/005-out-of-process-detector.md)
 - [Guide reseau](docs/network/proxy-enterprise.md)
 
 Inspirations : [AgentRedactor](https://github.com/Negative-Star-Innovators/AgentRedactor), [Headroom](https://github.com/headroomlabs-ai/headroom), [Px](https://github.com/genotrance/px). Code reconstruit, sans copie de leurs composants. Licence MIT.

@@ -1,4 +1,8 @@
-"""Experimental request PII filter; responses are fully buffered, including SSE."""
+"""Experimental request PII filter; responses are fully buffered, including SSE.
+
+Slow detection (Presidio) never runs in this module: it runs in pii_worker.py, and the
+results reach Guard.request() through ``prefetched`` (see collect()).
+"""
 import copy
 import hashlib
 import ipaddress
@@ -53,16 +57,12 @@ class Guard:
         self.aliases, self.reverse, self.known = {}, {}, {}
         self.prefix = secrets.token_hex(6)
         self.cache = OrderedDict()
+        # Optional synchronous detector, for tests or embedded use; text -> [(start, end, type)].
         self.detector = None
-        if config.get('presidio_language'):
-            from presidio_analyzer import AnalyzerEngine
-            from presidio_analyzer.nlp_engine import NlpEngineProvider
-            lang = config['presidio_language']
-            nlp = NlpEngineProvider(nlp_configuration={'nlp_engine_name': 'spacy', 'models': [
-                {'lang_code': lang, 'model_name': config['presidio_model']}]}).create_engine()
-            analyzer = AnalyzerEngine(nlp_engine=nlp, supported_languages=[lang])
-            self.detector = lambda text: [(r.start, r.end, r.entity_type) for r in analyzer.analyze(
-                text=text, language=lang, score_threshold=config.get('presidio_score', 0.7))]
+        # External slow detection: every analysed text must have a prefetched or cached result.
+        self.external = bool(config.get('presidio_language'))
+        self._prefetched = None
+        self._recording = None
 
     def spans(self, text, slow=True):
         found = [(m.start(), m.end(), kind) for kind, rule in self.rules for m in rule.finditer(text) if m.end() > m.start()]
@@ -79,15 +79,21 @@ class Guard:
                     found.append((m.start(), m.end(), 'PRIVATE_IP'))
             except ValueError:
                 pass
-        if slow and self.detector:
-            key = hashlib.blake2b(text.encode('utf-8', 'surrogatepass'), digest_size=16).digest()
-            if key not in self.cache:
-                spans = list(self.detector(text))
-                if any(not (isinstance(a, int) and isinstance(b, int) and 0 <= a < b <= len(text)) for a, b, _ in spans):
-                    raise PolicyError('invalid detector span')
-                self.cache[key] = spans
+        if slow and self._recording is not None:
+            self._recording(text)
+        elif slow and (self.detector or self.external):
+            key = self.key(text)
+            if key in self.cache:
+                spans = self.cache[key]
+            elif self._prefetched is not None and key in self._prefetched:
+                spans = self.validate_spans(text, self._prefetched[key])
+            elif self.detector:
+                spans = self.validate_spans(text, self.detector(text))
+            else:
+                raise PolicyError('detector result missing')
+            self.cache[key] = spans
             self.cache.move_to_end(key)
-            found += self.cache[key]
+            found += spans
             while len(self.cache) > self.config.get('cache_size', 2000):
                 self.cache.popitem(last=False)
         merged = []
@@ -98,6 +104,18 @@ class Guard:
             else:
                 merged.append((a, b, kind))
         return merged
+
+    @staticmethod
+    def key(text):
+        return hashlib.blake2b(text.encode('utf-8', 'surrogatepass'), digest_size=16).digest()
+
+    @staticmethod
+    def validate_spans(text, spans):
+        spans = [tuple(span) for span in spans]
+        if any(len(span) != 3 or not (type(span[0]) is int and type(span[1]) is int and 0 <= span[0] < span[1] <= len(text))
+               or not isinstance(span[2], str) or not span[2] for span in spans):
+            raise PolicyError('invalid detector span')
+        return spans
 
     def redact(self, text, writable=True, slow=True):
         if text.startswith('data:') and len(text) > 256:
@@ -143,26 +161,66 @@ class Guard:
             return result
         return node
 
-    def request(self, body):
+    def parse(self, body):
         if len(body) > self.config.get('max_body_bytes', 4194304):
             raise PolicyError('request size exceeded')
         obj = loads(body)
         if not isinstance(obj, dict) or not self.ROOTS.intersection(obj):
             raise PolicyError('unknown request schema')
-        changed = self.walk(obj, root=True)
+        return obj
+
+    def request(self, body, prefetched=None):
+        """Filter a request body. ``prefetched`` maps key(text) to detector spans."""
+        obj = self.parse(body)
+        self._prefetched = prefetched
+        try:
+            changed = self.walk(obj, root=True)
+        finally:
+            self._prefetched = None
         return body if changed == obj else dumps(changed)
 
-    def check(self):
-        """Exercise the active policy without consuming its mapping or cache."""
+    def probe(self):
+        """Copy sharing configuration but not mutable mapping or cache state."""
         probe = copy.copy(self)
         for name in ('aliases', 'reverse', 'known', 'cache'):
             setattr(probe, name, getattr(self, name).copy())
-        neutral = dumps({'messages': [{'role': 'user', 'content': ''}]})
-        sample = dumps({'messages': [{'role': 'user', 'content': 'canary@example.test'}]})
-        if probe.request(neutral) != neutral:
+        return probe
+
+    def collect(self, body, ignore_policy=False):
+        """Return (texts needing slow detection, results already cached) for a request body.
+
+        Uses the same walk() as request() on a probe, so both see the same strings. Cached
+        results are copied so a later eviction cannot leave request() without a result.
+        """
+        texts, known = {}, {}
+        if not (self.external or self.detector):
+            return [], known
+        probe = self.probe()
+        def record(text):
+            key = self.key(text)
+            if key in self.cache:
+                known[key] = self.cache[key]
+            else:
+                texts.setdefault(key, text)
+        probe._recording = record
+        try:
+            probe.walk(self.parse(body), root=True)
+        except PolicyError:
+            if not ignore_policy:
+                raise
+        return list(texts.values()), known
+
+    CHECK_BODIES = (dumps({'messages': [{'role': 'user', 'content': ''}]}),
+                    dumps({'messages': [{'role': 'user', 'content': 'canary@example.test'}]}))
+
+    def check(self, prefetched=None):
+        """Exercise the active policy without consuming its mapping or cache."""
+        probe = self.probe()
+        neutral, sample = self.CHECK_BODIES
+        if probe.request(neutral, prefetched) != neutral:
             return False
         try:
-            result = probe.request(sample)
+            result = probe.request(sample, prefetched)
         except SensitiveDataError:
             return self.mode == 'block'
         if self.mode != 'redact' or result == sample:

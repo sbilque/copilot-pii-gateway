@@ -59,6 +59,17 @@ def validate_config(config):
         raise ConfigurationError('presidio_language must be null or a non-empty string')
     if language and (not isinstance(config.get('presidio_model'), str) or not config['presidio_model'].strip()):
         raise ConfigurationError('presidio_model is required when Presidio is enabled')
+    worker = {'presidio_timeout_ms': (3000, 100, 60000), 'presidio_max_chars': (200000, 1, 4194304),
+              'presidio_queue': (8, 1, 1000), 'presidio_max_restarts': (3, 1, 100),
+              'presidio_restart_window_s': (60, 1, 86400)}
+    for key, (default, minimum, maximum) in worker.items():
+        value = config.get(key, default)
+        if type(value) is not int or not minimum <= value <= maximum:
+            raise ConfigurationError(f'{key} must be an integer between {minimum} and {maximum}')
+        config[key] = value
+    python = config.get('presidio_python')
+    if python is not None and (not isinstance(python, str) or not python.strip()):
+        raise ConfigurationError('presidio_python must be null or a non-empty path')
     score = config.get('presidio_score', 0.7)
     if type(score) not in (int, float) or not math.isfinite(score) or not 0 <= score <= 1:
         raise ConfigurationError('presidio_score must be a finite number between zero and one')
