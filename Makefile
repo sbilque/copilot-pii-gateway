@@ -35,14 +35,14 @@ MITMDUMP := $(VENV_BIN)/mitmdump$(EXE)
 STAMP_BASE     := $(VENV)/.installed-base
 STAMP_PRESIDIO := $(VENV)/.installed-presidio
 STAMP_PX       := $(VENV)/.installed-px
-SOURCES := pii_config.py pii_core.py pii_mapping.py pii_detector.py pii_worker.py copilot_pii.py gateway.py \
+SOURCES := pii_config.py pii_core.py pii_mapping.py pii_detector.py pii_worker.py copilot_pii.py gateway.py watch_proxy.py \
            check_proxy.py check_config.py fake_worker.py \
            test_core.py test_addon.py test_regressions.py test_worker.py test_gateway.py test_mapping.py \
            lab/fake_copilot.py lab/pki.py lab/test_lab.py
 
 .PHONY: help setup setup-presidio check-python venv install install-presidio \
         install-px presidio-model test compile policy-check config-check check ca ca-path \
-        px-config run px canary doctor clean distclean \
+        px-config run px canary watch proxy-secret doctor clean distclean \
         lab lab-up lab-test lab-logs lab-shell lab-collect lab-down
 
 help: ## Afficher cette aide
@@ -127,7 +127,7 @@ px-config: ## Creer px.ini a partir de px.ini.example (sans ecraser)
 	else cp px.ini.example $(PX_CONFIG); echo "$(PX_CONFIG) cree : adapter server"; fi
 
 run: $(STAMP_BASE) policy-check ## Lancer la passerelle (gateway.py, addon integre, sans rechargement)
-	COPILOT_PII_CONFIG=$(POLICY) $(PY) gateway.py --set confdir=. --listen-port $(GATEWAY_PORT)
+	COPILOT_PII_CONFIG=$(POLICY) COPILOT_PII_PIDFILE=gateway.pid $(PY) gateway.py --set confdir=. --listen-port $(GATEWAY_PORT)
 
 install-px: $(STAMP_PX) ## Installer Px pour NTLM/Kerberos (facultatif)
 
@@ -141,6 +141,14 @@ px: $(STAMP_PX) ## Lancer Px avec px.ini (proxy local 127.0.0.1:3128)
 
 canary: $(PY) ## Interroger le canari du proxy demarre (make run dans un autre terminal)
 	CANARY_PROXY=$(CANARY_PROXY) $(PY) check_proxy.py
+
+watch: $(PY) ## Canari periodique : alerte puis arret de la passerelle apres 3 echecs
+	CANARY_PROXY=$(CANARY_PROXY) $(PY) watch_proxy.py --pidfile gateway.pid
+
+proxy-secret: ## Creer proxy-auth (mot de passe du proxy local, optionnel, non versionne)
+	@if [ -e proxy-auth ]; then echo "proxy-auth existe deja (supprimer pour regenerer)"; exit 1; fi
+	@umask 077; $(PYTHON) -c "import secrets; print('copilot:' + secrets.token_urlsafe(32))" > proxy-auth
+	@echo "proxy-auth cree (mode 600). Identifiants du proxy : voir docs/prototype.md"
 
 doctor: ## Etat de l'environnement et etapes manuelles
 	@printf "Python systeme   : "; $(PYTHON) --version 2>&1 || true

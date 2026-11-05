@@ -10,9 +10,10 @@ Prototype experimental de pseudonymisation locale pour VS Code et GitHub Copilot
 - `gateway.py` : lanceur, addon integre sans chargement ni rechargement de scripts (ADR-006).
 - `copilot_pii.py` : adaptateur mitmproxy (hooks async).
 - `pii_detector.py`, `pii_worker.py` : Presidio dans un processus separe, avec delai borne, relance et refus en cas d'echec.
-- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py`, `test_gateway.py`, `test_mapping.py` : 108 tests, dont hooks mitmproxy simules, processus worker reels pilotes par `fake_worker.py` et lanceur avec mitmproxy reel.
+- `test_core.py`, `test_addon.py`, `test_regressions.py`, `test_worker.py`, `test_gateway.py`, `test_mapping.py` : 120 tests, dont hooks mitmproxy simules, processus worker reels pilotes par `fake_worker.py` et lanceur, mot de passe local et superviseur avec mitmproxy reel.
 - `policy.json`, `config.yaml`, `px.ini.example` : exemples a adapter.
 - `check_proxy.py` : canari synthetique local.
+- `watch_proxy.py` : canari periodique, arret de la passerelle apres echecs (ADR-008) ; exemples launchd et systemd dans `supervision/`.
 - `check_config.py` : validation de config.yaml par le gestionnaire d'options mitmproxy.
 - `Makefile` : preparation et verification de l'environnement de developpement.
 
@@ -39,7 +40,7 @@ Les secrets detectes dans les corps analyses sont bloques, y compris dans les no
 
 Le client officiel conserve la gestion de l'authentification Copilot ; l'addon ne gere pas les jetons. L'interception HTTPS n'implique pas que les credentials soient invisibles au processus proxy. Les profils reseau restent des configurations manuelles, et le transport natif reste une piste a evaluer, pas une fonction publiee.
 
-Le canari verifie un corps neutre, la protection d'un email synthetique et, en mode redact, sa restauration JSON. Il ne confond plus une erreur generique avec un blocage attendu. Il ne garantit pas le routage de Copilot. Le lanceur `gateway.py` empeche qu'un addon casse ou recharge laisse le proxy ouvert ; il n'empeche pas un contournement du proxy (verrou reseau a prevoir).
+Le canari verifie un corps neutre, la protection d'un email synthetique et, en mode redact, sa restauration JSON. Il ne confond plus une erreur generique avec un blocage attendu. Il ne garantit pas le routage de Copilot. Le lanceur `gateway.py` empeche qu'un addon casse ou recharge laisse le proxy ouvert ; il n'empeche pas un contournement du proxy (verrou reseau a prevoir). Le mot de passe optionnel du proxy local (`make proxy-secret`) ferme l'acces des autres utilisateurs locaux.
 
 ## Documentation
 

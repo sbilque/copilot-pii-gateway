@@ -1,0 +1,14 @@
+# Exemple systemd : canari toutes les 60 s, arret de la passerelle apres 3 echecs.
+[Unit]
+Description=Copilot PII gateway canary
+After=copilot-pii-gateway.service
+Requires=copilot-pii-gateway.service
+
+[Service]
+WorkingDirectory=%h/copilot-pii-gateway
+Environment=CANARY_PROXY=http://127.0.0.1:8080
+ExecStart=%h/copilot-pii-gateway/.venv/bin/python watch_proxy.py --pidfile %h/copilot-pii-gateway/gateway.pid
+Restart=no
+
+[Install]
+WantedBy=default.target

@@ -7,3 +7,5 @@ mitmproxy-dhparam*
 px.ini
 .env
 .env.*
+proxy-auth
+gateway.pid

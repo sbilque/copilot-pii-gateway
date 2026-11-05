@@ -23,3 +23,5 @@ mitmproxy-ca*
 mitmproxy-dhparam*
 px.ini
 lab/out/
+proxy-auth
+gateway.pid

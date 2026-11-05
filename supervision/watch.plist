@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Exemple launchd : canari toutes les 60 s, arret de la passerelle apres 3 echecs. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.copilot-pii.watch</string>
+  <key>WorkingDirectory</key><string>REPO</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPO/.venv/bin/python</string>
+    <string>REPO/watch_proxy.py</string>
+    <string>--pidfile</string><string>REPO/gateway.pid</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CANARY_PROXY</key><string>http://127.0.0.1:8080</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+  <key>StandardErrorPath</key><string>REPO/logs/watch.log</string>
+</dict>
+</plist>

@@ -90,6 +90,14 @@ services:
       LAB_MODE: redact
       LAB_POLICY_PATCH: '{"mapping_ttl_s": 3}'
 
+  # J6 : mot de passe du proxy local (secret synthetique du lab). Le healthcheck lit le meme fichier.
+  gateway-auth:
+    <<: *gateway
+    environment:
+      LAB_MODE: block
+      LAB_PROXY_AUTH: copilot:lab-only-synthetic-secret-0001
+      COPILOT_PII_PROXY_AUTH: /tmp/proxy-auth
+
   # F2 : proxy d'entreprise injoignable (nom non resolu), aucune sortie directe possible.
   gateway-noproxy:
     <<: *gateway
@@ -150,6 +158,7 @@ services:
       gateway-redact: {condition: service_healthy}
       gateway-fresh: {condition: service_healthy}
       gateway-ttl: {condition: service_healthy}
+      gateway-auth: {condition: service_healthy}
       gateway-noproxy: {condition: service_healthy}
       gateway-presidio: {condition: service_healthy}
       gateway-hot: {condition: service_healthy}

@@ -2,7 +2,7 @@
 
 ## Portee
 
-Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 108 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
+Cette version reconstitue les principes du prototype historique, pas son code a l'identique. Elle remplace les 51 tests historiques non disponibles par 120 tests reproductibles. Les hooks HTTP sont simules ; le worker Presidio est teste avec de vrais processus enfants. Aucune integration Copilot reelle n'a ete validee.
 
 ## Preparation
 
@@ -55,7 +55,9 @@ Configurer VS Code :
 
 Ce transport est une interception HTTPS, pas la redirection native Headroom. En WSL/SSH/conteneur, verifier le lieu d'execution de l'hote d'extension.
 
-Executer `python check_proxy.py` apres chaque demarrage avant utilisation. Si l'addon echoue au chargement, mitmproxy peut continuer sans filtre : le canari detecte l'absence du filtre mais n'est pas un verrou reseau ni une preuve du bon processus.
+Executer `make canary` apres chaque demarrage avant utilisation, puis `make watch` (ou les exemples de `supervision/`) pour un canari toutes les 60 s qui arrete la passerelle apres 3 echecs. Le canari n'est ni un verrou reseau ni une preuve du bon processus.
+
+Port et mot de passe locaux (facultatifs) : une passerelle par utilisateur, sur son port (`make run GATEWAY_PORT=8081`). `make proxy-secret` cree `proxy-auth` (mode 600) ; la passerelle exige alors ces identifiants (407 sinon). D'apres la [documentation VS Code](https://code.visualstudio.com/docs/setup/network), VS Code affiche une invite pour un proxy Basic ; d'apres la [documentation GitHub Copilot](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/configure-network-settings), les identifiants peuvent figurer dans l'URL du proxy (`http://copilot:<secret>@127.0.0.1:8080`, en clair dans settings.json). Non verifie avec VS Code dans ce depot (ADR-008).
 
 Le canari exerce la politique active sur une copie des mappings et du cache, sans consommer leur capacite. Un corps neutre doit passer ; canary@example.test doit etre bloque par SensitiveDataError en mode block, ou pseudonymise puis restaure exactement en mode redact. La politique doit donc detecter cet email synthetique. Une erreur de taille, de detecteur, de capacite ou de restauration donne 503, pas ready=true. Avec Presidio, la reponse indique aussi l'etat du worker (champ detector) ; ready=true exige un worker pret et un canari analyse par lui.
 
@@ -84,7 +86,7 @@ Pendant le chargement du modele (plusieurs secondes) et apres chaque relance, le
 
 - Reponses entierement bufferisees, meme SSE : pas d'affichage progressif, risque de timeout sur longues generations. Les deltas sont regroupes par canal puis le texte restaure est place dans le premier fragment de chaque canal.
 - Taille verifiee apres buffering pour corps sans longueur fiable ; pas de plafond memoire global. La file Presidio est bornee, mais pas la concurrence des flux sans analyse lente.
-- Mapping global mono-utilisateur en memoire ; pas de TTL ni isolation par conversation. Redemarrage et historique fournisseur opaque non garantis.
+- Mapping en memoire par passerelle et donc par utilisateur, purge apres 8 h d'inactivite et a l'arret (ADR-007) ; pas d'isolation par conversation. Apres redemarrage ou expiration, les anciens alias sont refuses (502).
 - Detection imparfaite et protocole non exhaustif : contenus encodes ou noms de champs nouveaux peuvent echapper aux classifications.
 - Les chaines arguments et partial_json sont parsees avant restauration. Les evenements Responses response.function_call_arguments.delta sont explicitement classes comme arguments JSON, y compris avec le seul champ SSE event ; item_id ou output_index est requis pour identifier le canal. Les tests couvrent guillemets, antislashs, retours ligne, toutes les positions de coupure d'un exemple et deux appels paralleles. Cela ne prouve pas la couverture de tous les schemas ni la stabilite des chemins JSON entre evenements ; tester des captures synthetiques representatives avant toute execution.
 - En mode redact, l'addon verifie chaque reponse, meme avec un mapping vide : tout motif `__PII_` (y compris via echappements `\u` en JSON ou SSE) passe par la restauration stricte et un alias inconnu donne 502. Le prefixe d'alias est tire au hasard a chaque instance de `Guard`. En mode block, les reponses ne sont pas verifiees.
@@ -97,10 +99,9 @@ Verifier un prompt neutre, un canari email, le corps sortant, les reponses JSON/
 
 ## Travaux restants
 
-1. Ajouter et executer une integration locale avec mitmproxy reel, un serveur de test et un proxy amont ; couvrir les pannes et verifier le corps effectivement transmis.
-2. Mesurer le worker Presidio sur le poste cible (chargement, latence p50/p95, memoire) et ajuster ses valeurs par defaut ; tester les modeles francais.
-3. Borner la memoire avant buffering et la concurrence ; definir l'isolation et la duree de vie des mappings.
-4. Decider explicitement si le streaming incremental SSE doit etre reintroduit, avec adaptateurs par protocole et tests des evenements terminaux et canaux paralleles.
-5. Ajouter une supervision et un verrou reseau pour l'absence du filtre ; le canari seul ne ferme pas ce risque.
+1. Mesurer le worker Presidio sur le poste cible (chargement, latence p50/p95, memoire) et ajuster ses valeurs par defaut ; tester les modeles francais.
+2. Borner la memoire avant buffering et la concurrence.
+3. Decider explicitement si le streaming incremental SSE doit etre reintroduit, avec adaptateurs par protocole et tests des evenements terminaux et canaux paralleles.
+4. Decrire et verifier un verrou reseau contre le contournement du proxy (jalon 7).
 
 Le handoff decrit l'etat actuel du depot ; chaque ADR indique son etat d'implementation. Le transport natif est differe et a evaluer, non abandonne. Les profils direct_proxy et integrated_proxy restent des configurations manuelles, pas un schema applicatif executable.

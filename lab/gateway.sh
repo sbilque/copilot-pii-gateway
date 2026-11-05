@@ -5,6 +5,7 @@
 #   LAB_UPSTREAM      proxy amont (defaut http://corp-proxy:3128)
 #   LAB_HOT_DIR       copie le code dans ce dossier et le lance depuis la (test F3)
 #   LAB_ADD_SCRIPTS   1 : ajoute scripts a la configuration (doit etre refuse, test F4)
+#   LAB_PROXY_AUTH    user:password du proxy local, ecrit dans COPILOT_PII_PROXY_AUTH (J6)
 set -eu
 conf=$(mktemp -d)
 cp /pki/mitmproxy-ca.pem "$conf/"
@@ -26,4 +27,7 @@ policy.update(json.loads(os.environ.get('LAB_POLICY_PATCH') or '{}'))
 json.dump(policy, open(sys.argv[1], 'w'))
 PY
 export COPILOT_PII_CONFIG="$conf/policy.json"
+if [ -n "${LAB_PROXY_AUTH:-}" ]; then
+    (umask 077; printf '%s\n' "$LAB_PROXY_AUTH" > "$COPILOT_PII_PROXY_AUTH")
+fi
 exec python "$code/gateway.py" --set confdir="$conf"

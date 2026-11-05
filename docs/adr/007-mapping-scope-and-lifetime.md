@@ -18,7 +18,7 @@ Le mapping alias -> valeur reelle est la donnee la plus sensible de la passerell
 ## Consequences
 
 - Une conversation reprise apres 8 heures d'inactivite ou apres un redemarrage ne peut plus restaurer ses anciens alias : refus explicite, jamais d'alias brut.
-- L'isolation entre utilisateurs repose sur des ports distincts. Un autre utilisateur local peut encore joindre le port : le mot de passe optionnel du proxy local (jalon 6) le ferme.
+- L'isolation entre utilisateurs repose sur des ports distincts. Un autre utilisateur local peut encore joindre le port, sauf avec le mot de passe optionnel du proxy local (ADR-008).
 - Pas de portee par conversation : Copilot n'expose pas d'identifiant de conversation stable dans les requetes.
 
 ## Validation

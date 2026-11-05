@@ -1,0 +1,15 @@
+# Exemple systemd (service utilisateur). Depot suppose dans ~/copilot-pii-gateway.
+# Installation : cp supervision/*.service ~/.config/systemd/user/ && systemctl --user daemon-reload
+[Unit]
+Description=Copilot PII gateway (mitmproxy, addon integre)
+
+[Service]
+WorkingDirectory=%h/copilot-pii-gateway
+Environment=COPILOT_PII_CONFIG=%h/copilot-pii-gateway/policy.json
+Environment=COPILOT_PII_PIDFILE=%h/copilot-pii-gateway/gateway.pid
+ExecStart=%h/copilot-pii-gateway/.venv/bin/python gateway.py --set confdir=%h/copilot-pii-gateway --listen-port 8080
+# Pas de redemarrage automatique : une passerelle arretee par le canari reste arretee.
+Restart=no
+
+[Install]
+WantedBy=default.target

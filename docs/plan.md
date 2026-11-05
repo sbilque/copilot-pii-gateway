@@ -1,6 +1,6 @@
 # Plan : lab d'intégration, filtre absent, isolation des alias
 
-État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 5 réalisés : voir [le lab](../lab/README.md).
+État de départ : `main` au commit 4843ce4 (80 tests unitaires, hooks mitmproxy simulés). Jalons 1 à 6 réalisés : voir [le lab](../lab/README.md).
 
 ## Constats vérifiés avant de planifier
 
@@ -152,6 +152,7 @@ Point de vigilance : le client renvoie l'historique avec les valeurs déjà rest
 
 - Le port loopback est joignable par tout utilisateur local. Une authentification du proxy local est ajoutée en option, désactivée par défaut : `make proxy-secret` génère un secret aléatoire dans un fichier local non versionné, et le lanceur l'applique via l'option `proxyauth` de mitmproxy si ce fichier existe.
 - La prise en charge par VS Code (identifiants dans `http.proxy` ou invite) est vérifiée dans le lab avant d'être documentée.
+  Réalisé (J6) : non vérifié, VS Code n'est pas exécutable dans le lab. La documentation cite les sources VS Code et GitHub et marque la configuration comme non vérifiée ; l'option reste désactivée par défaut.
 - Le lab teste les deux configurations : sans secret, comportement actuel ; avec secret, un client sans identifiants est refusé (407) avant toute analyse.
 
 Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, le redémarrage, la portée par utilisateur et le refus d'un client non autorisé. La documentation et l'ADR-002 sont mis à jour.
@@ -165,7 +166,7 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 | J3 | C1 : vérification systématique des alias | J1 | S, **fait** |
 | J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S, **fait** |
 | J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M, **fait** |
-| J6 | C4 et B4 : authentification du proxy local et supervision | J5 | M |
+| J6 | C4 et B4 : authentification du proxy local et supervision | J5 | M, **fait** (VS Code non vérifié) |
 | J7 | B3 : verrou réseau documenté et vérifié sur un système | J4 | M |
 | J8 | NTLM/Kerberos : méthode manuelle documentée, sans test automatisé | — | S, **fait** |
 

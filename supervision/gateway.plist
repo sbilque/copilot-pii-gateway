@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Exemple launchd (agent utilisateur macOS). Remplacer REPO par le chemin absolu du depot. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.copilot-pii.gateway</string>
+  <key>WorkingDirectory</key><string>REPO</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>REPO/.venv/bin/python</string>
+    <string>REPO/gateway.py</string>
+    <string>--set</string><string>confdir=REPO</string>
+    <string>--listen-port</string><string>8080</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>COPILOT_PII_CONFIG</key><string>REPO/policy.json</string>
+    <key>COPILOT_PII_PIDFILE</key><string>REPO/gateway.pid</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <!-- Pas de redemarrage automatique : une passerelle arretee par le canari reste arretee. -->
+  <key>KeepAlive</key><false/>
+  <key>StandardErrorPath</key><string>REPO/logs/gateway.log</string>
+</dict>
+</plist>

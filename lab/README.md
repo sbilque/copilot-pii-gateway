@@ -35,12 +35,13 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 | `gateway-redact` | Mode redact, plus un literal avec guillemet et antislash (echappement JSON des alias) |
 | `gateway-fresh` | Mode redact, ne recoit jamais de donnee sensible : mapping toujours vide (C1) |
 | `gateway-ttl` | Mode redact, mapping purge apres 3 s d'inactivite (J5) |
+| `gateway-auth` | Mode block, mot de passe du proxy local (secret synthetique du lab) (J6) |
 | `gateway-noproxy` | Proxy amont introuvable (F2) |
 | `gateway-presidio` | Detecteur externe factice (`fake_worker.py` via `lab/fake_python.sh`), delai 1 s (F5) |
 | `gateway-hot` | Code lance depuis le volume `hot`, casse pendant l'execution par les tests (F3) |
 | `startup-check` | Profil `faults`, sans reseau : politique invalide puis `scripts` dans la configuration, doit refuser de demarrer (F4) |
 
-`lab/gateway.sh` lit `LAB_MODE`, `LAB_POLICY_PATCH` (JSON fusionne dans `policy.json`), `LAB_UPSTREAM`, `LAB_HOT_DIR` et `LAB_ADD_SCRIPTS`, puis lance `gateway.py`. Le healthcheck des passerelles execute `check_proxy.py` : une passerelle n'est saine que si l'addon repond au canari.
+`lab/gateway.sh` lit `LAB_MODE`, `LAB_POLICY_PATCH` (JSON fusionne dans `policy.json`), `LAB_UPSTREAM`, `LAB_HOT_DIR`, `LAB_ADD_SCRIPTS` et `LAB_PROXY_AUTH`, puis lance `gateway.py`. Le healthcheck des passerelles execute `check_proxy.py` : une passerelle n'est saine que si l'addon repond au canari.
 
 - `pki` genere une CA de test, le certificat de `api.business.githubcopilot.com` et la CA mitmproxy dans un volume.
 - `fake-copilot` porte le vrai nom d'hote par alias reseau, enregistre chaque corps recu (`x-lab-id`) et repond selon l'en-tete `x-lab-scenario` : `echo`, `gzip-echo`, `unknown-alias`, `sse-chat`, `sse-responses`, `sse-anthropic`. Les flux SSE renvoient les alias recus, coupes entre evenements, dans le texte et dans trois appels d'outils entrelaces.
@@ -68,6 +69,7 @@ tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squi
 | F7 | Reponse `gzip` : restauree ou refusee explicitement, jamais d'alias brut |
 | C1 | Mapping vide : alias d'une autre instance ou alias inconnu -> 502 sans alias renvoye ; reponse neutre transmise |
 | J5 | Alias expire apres inactivite : 502 sans valeur ni alias renvoye ; le meme alias n'est jamais reemis |
+| J6 | Client sans identifiants ou avec de mauvais identifiants : 407 avant analyse ; avec le secret, filtrage normal |
 | I1, I2 | Squid et l'amont injoignables depuis le reseau client |
 
 Les tests lisent ce que l'amont a reellement recu. Controles par mutation : une passerelle sans addon (`mitmdump` seul) fait echouer N2, et `gateway-hot` lancee avec `mitmdump` et `scripts` fait echouer F3.

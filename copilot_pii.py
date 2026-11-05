@@ -61,6 +61,8 @@ class CopilotPII:
                                           {'content-type': 'application/json', 'cache-control': 'no-store'})
 
     def requestheaders(self, flow):
+        if flow.response is not None:
+            return  # already answered, e.g. 407 from proxy authentication
         if self.target(flow.request.host):
             flow.request.stream = False
             length = flow.request.headers.get('content-length')
@@ -71,6 +73,8 @@ class CopilotPII:
                 self.error(flow, 400)
 
     async def request(self, flow):
+        if flow.response is not None:
+            return  # already answered (407 from proxy authentication, 413): nothing is analysed
         if flow.request.host == 'pii-gate.invalid':
             try:
                 peer = flow.client_conn.peername[0]

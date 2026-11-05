@@ -23,6 +23,8 @@ GATEWAY_BLOCK = os.environ.get('LAB_GATEWAY_BLOCK', 'http://gateway-block:8080')
 GATEWAY_REDACT = os.environ.get('LAB_GATEWAY_REDACT', 'http://gateway-redact:8080')
 GATEWAY_FRESH = os.environ.get('LAB_GATEWAY_FRESH', 'http://gateway-fresh:8080')
 GATEWAY_TTL = os.environ.get('LAB_GATEWAY_TTL', 'http://gateway-ttl:8080')
+GATEWAY_AUTH = os.environ.get('LAB_GATEWAY_AUTH', 'http://gateway-auth:8080')
+LAB_SECRET = 'copilot:lab-only-synthetic-secret-0001'  # synthetic, lab only
 GATEWAY_NOPROXY = os.environ.get('LAB_GATEWAY_NOPROXY', 'http://gateway-noproxy:8080')
 GATEWAY_PRESIDIO = os.environ.get('LAB_GATEWAY_PRESIDIO', 'http://gateway-presidio:8080')
 GATEWAY_HOT = os.environ.get('LAB_GATEWAY_HOT', 'http://gateway-hot:8080')
@@ -279,6 +281,28 @@ class Expiry(unittest.TestCase):
         self.assertNotIn(alias.encode(), recorded(lab_id), 'expired alias reused')
 
 
+class LocalAuth(unittest.TestCase):
+    """J6: gateway-auth requires the local proxy password before any analysis."""
+
+    def with_secret(self, secret):
+        return GATEWAY_AUTH.replace('http://', f'http://{secret}@')
+
+    def test_j6_client_without_credentials_refused(self):
+        for gateway in (GATEWAY_AUTH, self.with_secret('copilot:wrong-password-000000')):
+            with self.assertRaises(OSError) as raised:
+                post(gateway, chat('Ecris a ' + EMAIL))
+            self.assertIn('407', str(raised.exception))
+        self.assertEqual(health(GATEWAY_AUTH), 407)
+
+    def test_j6_client_with_credentials_filtered(self):
+        lab_id, status, _, _ = post(self.with_secret(LAB_SECRET), chat('Bonjour'))
+        self.assertEqual(status, 200)
+        self.assertIsNotNone(recorded(lab_id))
+        lab_id, status, _, _ = post(self.with_secret(LAB_SECRET), chat('Ecris a ' + EMAIL))
+        self.assertEqual(status, 403)
+        self.assertIsNone(recorded(lab_id, wait=1.0))
+
+
 class HotReload(unittest.TestCase):
     """F3: the code of gateway-hot is broken while it runs. gateway.py loads no script, so
     nothing is reloaded and the filter in memory keeps working."""
@@ -318,7 +342,7 @@ class Isolation(unittest.TestCase):
 def load_tests(loader, tests, pattern):
     """HotReload last: it breaks the code of gateway-hot on purpose."""
     suite = unittest.TestSuite()
-    for case in (Isolation, Nominal, Policy, Streaming, Faults, Mapping, Expiry, HotReload):
+    for case in (Isolation, Nominal, Policy, Streaming, Faults, Mapping, Expiry, LocalAuth, HotReload):
         suite.addTests(loader.loadTestsFromTestCase(case))
     return suite
 
