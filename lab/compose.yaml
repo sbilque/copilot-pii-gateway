@@ -18,7 +18,8 @@ x-gateway: &gateway
     pki: {condition: service_completed_successfully}
     corp-proxy: {condition: service_healthy}
   healthcheck:
-    test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8080), 2)"]
+    # Canari reel sur la boucle locale : sain seulement si l'addon repond ready=true.
+    test: ["CMD", "python", "/app/check_proxy.py"]
     interval: 2s
     timeout: 3s
     retries: 30
@@ -73,6 +74,52 @@ services:
     <<: *gateway
     environment:
       LAB_MODE: redact
+      # Literal avec guillemet et antislash : verifie l'echappement JSON des alias.
+      LAB_POLICY_PATCH: '{"literals": ["CLIENT_DEMO_CONFIDENTIEL", "Projet \"Alpha\\Beta\""]}'
+
+  # F2 : proxy d'entreprise injoignable (nom non resolu), aucune sortie directe possible.
+  gateway-noproxy:
+    <<: *gateway
+    environment:
+      LAB_MODE: block
+      LAB_UPSTREAM: http://corp-proxy-down:3128
+
+  # F5 : detecteur externe factice (fake_worker.py) a la place de Presidio.
+  gateway-presidio:
+    <<: *gateway
+    environment:
+      LAB_MODE: block
+      LAB_POLICY_PATCH: '{"presidio_language": "en", "presidio_model": "fake", "presidio_python": "/app/lab/fake_python.sh", "presidio_timeout_ms": 1000, "presidio_max_restarts": 20}'
+
+  # F3 : script charge depuis un volume partage, casse a chaud par les tests.
+  gateway-hot:
+    <<: *gateway
+    environment:
+      LAB_MODE: block
+      LAB_HOT_DIR: /hot
+    volumes:
+      - pki:/pki:ro
+      - hot:/hot
+
+  # F4 : politique invalide au demarrage. Reussit si la passerelle refuse de demarrer.
+  startup-check:
+    <<: *app
+    profiles: [faults]
+    network_mode: none
+    volumes:
+      - pki:/pki:ro
+    environment:
+      LAB_POLICY_PATCH: '{"exact_hosts": "x"}'
+    command:
+      - sh
+      - -c
+      - |
+        timeout 20 /app/lab/gateway.sh
+        code=$$?
+        if [ $$code -eq 0 ] || [ $$code -eq 124 ]; then
+          echo "FAIL: gateway started with an invalid policy (exit $$code)"; exit 1
+        fi
+        echo "OK: gateway refused to start (exit $$code)"
 
   tests:
     <<: *app
@@ -82,9 +129,13 @@ services:
     volumes:
       - pki:/pki:ro
       - recordings:/recordings:ro
+      - hot:/hot
     depends_on:
       gateway-block: {condition: service_healthy}
       gateway-redact: {condition: service_healthy}
+      gateway-noproxy: {condition: service_healthy}
+      gateway-presidio: {condition: service_healthy}
+      gateway-hot: {condition: service_healthy}
 
 networks:
   client: {internal: true}
@@ -94,3 +145,4 @@ networks:
 volumes:
   pki:
   recordings:
+  hot:

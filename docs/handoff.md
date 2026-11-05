@@ -109,7 +109,7 @@ Plan detaille et decisions : [plan.md](plan.md).
 | Preserver les octets si rien ne change ; bloquer si la protection est impossible | Fait |
 | Auditer restauration JSON imbriquee et SSE | Fait pour les cas testes ; blocs signes refuses |
 | Outillage de developpement reproductible | Fait (Makefile) |
-| Integration avec vrai mitmproxy, serveur amont de test et proxy de test | Fait pour N1 a N3 (lab J1) ; SSE, pannes et canari au jalon 2 |
+| Integration avec vrai mitmproxy, serveur amont de test et proxy de test | Fait : N1 a N7, F1 a F7 (lab J1 et J2) ; F3 en echec attendu jusqu'au jalon 4 |
 | Limiter memoire avant buffering et concurrence ; isolation et duree de vie des mappings | A faire |
 | Decider du streaming SSE incremental | A decider |
 | Verrou reseau et supervision de l'absence du filtre | A faire |

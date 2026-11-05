@@ -159,11 +159,12 @@ doctor: ## Etat de l'environnement et etapes manuelles
 
 # --- Lab d'integration (Docker) ---------------------------------------------
 
-lab-up: ## Demarrer le lab : PKI, faux Copilot, Squid, passerelles block et redact
-	$(LAB) up -d $(LAB_BUILD) --wait
+lab-up: ## Demarrer le lab (etat propre) : PKI, faux Copilot, Squid, passerelles
+	$(LAB) up -d $(LAB_BUILD) --force-recreate --wait
 
-lab-test: lab-up ## Lancer les tests d'integration dans le lab (reconstruit si le code change)
+lab-test: lab-up ## Lancer les tests d'integration et la verification de demarrage (F4)
 	$(LAB) run --rm tests
+	$(LAB) --profile faults run --rm startup-check
 
 lab-logs: ## Suivre les journaux du lab
 	$(LAB) logs -f
@@ -178,7 +179,7 @@ lab-collect: ## Copier journaux et enregistrements amont dans lab/out (diagnosti
 	-$(LAB) exec -T corp-proxy cat /var/log/squid/access.log > lab/out/squid-access.log
 
 lab-down: ## Arreter le lab et supprimer ses volumes
-	$(LAB) --profile test down -v --remove-orphans
+	$(LAB) --profile test --profile faults down -v --remove-orphans
 
 lab: ## Cycle complet : demarrage, tests, arret garanti
 	@status=0; $(MAKE) --no-print-directory lab-test || status=$$?; \

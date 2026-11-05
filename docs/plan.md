@@ -161,7 +161,7 @@ Critère de fin du lot C : tests unitaires et d'intégration pour l'expiration, 
 | Jalon | Contenu | Dépend de | Taille |
 |---|---|---|---|
 | J1 | A1 à A4 et A6 : lab minimal, N1 à N3, direct_proxy, CI, devcontainer | — | M, **fait** |
-| J2 | A5 complet, avec F3 marqué « échec attendu » | J1 | M |
+| J2 | A5 complet, avec F3 marqué « échec attendu » | J1 | M, **fait** |
 | J3 | C1 : vérification systématique des alias | J1 | S |
 | J4 | B1 et B2 : lanceur ; F3 devient un succès | J2 | S |
 | J5 | C2 et C3 : `MappingStore` et portée par utilisateur | J3 | M |

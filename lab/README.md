@@ -14,8 +14,8 @@ Images multi-architecture : arm64 sur le Mac, amd64 dans la CI.
 | Commande | Effet |
 |---|---|
 | `make lab` | Cycle complet : demarrage, tests, collecte en cas d'echec, arret |
-| `make lab-up` | Construit les images et demarre le lab |
-| `make lab-test` | Reconstruit si le code a change, puis lance les tests |
+| `make lab-up` | Construit les images et recree tous les conteneurs (etat propre) |
+| `make lab-test` | Reconstruit si le code a change, lance les tests puis la verification de demarrage (F4) |
 | `make lab-logs` | Suit les journaux |
 | `make lab-shell` | Shell dans la passerelle redact |
 | `make lab-collect` | Copie journaux, enregistrements amont et journal Squid dans `lab/out/` |
@@ -26,11 +26,22 @@ Le code est copie dans l'image ; le cache Docker limite la reconstruction aux co
 ## Topologie
 
 ```text
-tests ──(client)──▶ gateway-block / gateway-redact ──(egress)──▶ corp-proxy (Squid) ──(upstream)──▶ fake-copilot
+tests ──(client)──▶ gateway-* ──(egress)──▶ corp-proxy (Squid) ──(upstream)──▶ fake-copilot
 ```
 
+| Passerelle | Role |
+|---|---|
+| `gateway-block` | Politique du depot, mode block |
+| `gateway-redact` | Mode redact, plus un literal avec guillemet et antislash (echappement JSON des alias) |
+| `gateway-noproxy` | Proxy amont introuvable (F2) |
+| `gateway-presidio` | Detecteur externe factice (`fake_worker.py` via `lab/fake_python.sh`), delai 1 s (F5) |
+| `gateway-hot` | Script charge depuis le volume `hot`, casse a chaud par les tests (F3) |
+| `startup-check` | Profil `faults`, sans reseau : politique invalide, doit refuser de demarrer (F4) |
+
+`lab/gateway.sh` lit `LAB_MODE`, `LAB_POLICY_PATCH` (JSON fusionne dans `policy.json`), `LAB_UPSTREAM` et `LAB_HOT_DIR`. Le healthcheck des passerelles execute `check_proxy.py` : une passerelle n'est saine que si l'addon repond au canari.
+
 - `pki` genere une CA de test, le certificat de `api.business.githubcopilot.com` et la CA mitmproxy dans un volume.
-- `fake-copilot` porte le vrai nom d'hote par alias reseau, enregistre chaque corps recu (`x-lab-id`) et repond en echo.
+- `fake-copilot` porte le vrai nom d'hote par alias reseau, enregistre chaque corps recu (`x-lab-id`) et repond selon l'en-tete `x-lab-scenario` : `echo`, `gzip-echo`, `unknown-alias`, `sse-chat`, `sse-responses`, `sse-anthropic`. Les flux SSE renvoient les alias recus, coupes entre evenements, dans le texte et dans trois appels d'outils entrelaces.
 - `corp-proxy` n'autorise que `CONNECT` 443 vers `*.githubcopilot.com`.
 - Les passerelles utilisent `copilot_pii.py`, `policy.json` du depot (mode force par `LAB_MODE`) et `lab/mitmproxy.yaml`, avec verification TLS de l'amont.
 - Trois reseaux `internal` : le client ne joint que les passerelles, et rien ne sort vers Internet.
@@ -42,6 +53,17 @@ tests ──(client)──▶ gateway-block / gateway-redact ──(egress)─�
 | N1 | Prompt neutre : octets recus par l'amont identiques aux octets envoyes |
 | N2 | Email synthetique en mode block : 403, aucun corps recu par l'amont |
 | N3 | Email, hote interne et IP privee en mode redact : l'amont ne voit que des alias, le client recoit les valeurs restaurees |
+| N4 | SSE Chat Completions, Responses et Anthropic : alias coupes entre evenements et appels d'outils paralleles ; le client reconstruit les valeurs d'origine et des arguments JSON valides |
+| N5 | Jeton synthetique dans un nom d'outil : 403 dans les deux modes, rien recu par l'amont |
+| N6 | Corps au-dela de `max_body_bytes` : 413, rien recu par l'amont |
+| N7 | Canari appele depuis le reseau client, avec ou sans `Origin` : 403 |
+| F1 | Amont introuvable : 502, rien enregistre |
+| F2 | Proxy d'entreprise injoignable : 502, aucune sortie directe |
+| F3 | Script casse pendant l'execution : echec attendu (`expectedFailure`), le corps sensible part en clair ; corrige au jalon 4 |
+| F4 | Politique invalide au demarrage : mitmproxy refuse de demarrer |
+| F5 | Detecteur lent puis plante : 503 sans transfert, puis reprise apres redemarrage du worker |
+| F6 | Alias inconnu dans la reponse : 502, aucun alias renvoye au client |
+| F7 | Reponse `gzip` : restauree ou refusee explicitement, jamais d'alias brut |
 | I1, I2 | Squid et l'amont injoignables depuis le reseau client |
 
 Les tests lisent ce que l'amont a reellement recu. Une passerelle sans addon fait echouer N2 : verifie en retirant `scripts` de la configuration.
@@ -49,5 +71,7 @@ Les tests lisent ce que l'amont a reellement recu. Une passerelle sans addon fai
 ## Limites
 
 - Pas d'authentification sur Squid, pas de NTLM/Kerberos : voir la methode manuelle du [guide reseau](../docs/network/proxy-enterprise.md).
-- Pas encore de scenarios SSE, de pannes ni de canari depuis le reseau client : jalon 2 du [plan](../docs/plan.md).
+- F3 reste un echec attendu tant que le lanceur du jalon 4 du [plan](../docs/plan.md) n'est pas fait.
+- F5 utilise un detecteur factice : Presidio reel n'est pas installe dans l'image du lab.
+- Squid echoue en 5 s sur un nom introuvable (`dns_timeout`, reglage du lab).
 - Les reseaux `internal` reposent sur les regles de Docker ; ils ne remplacent pas un verrou reseau sur le poste.

@@ -6,5 +6,5 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN useradd --system --uid 10001 lab \
-    && mkdir /pki /recordings && chown lab /pki /recordings
+    && mkdir /pki /recordings /hot && chown lab /pki /recordings /hot
 USER lab
